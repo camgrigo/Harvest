@@ -35,7 +35,6 @@
 		779BCE2E738BCB844044826C /* NotAtHomeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B8DC017F5DD2EDF4BD8839C /* NotAtHomeTests.swift */; };
 		77A51C7700201F5A7391EB4E /* NearbyAddresses.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A564C6D301CFFD362C004B /* NearbyAddresses.swift */; };
 		7837D7EEF8B09EF206AAD06B /* DateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9D782A7E9A783D8F7B4B080 /* DateHelpers.swift */; };
-		7F5F46A438C64829C8589DBE /* HeroTransition.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAFC6F22710D4B9F9B428F71 /* HeroTransition.swift */; };
 		8924D41C5B7C8784F234792A /* FeedCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8DC196AE63B41BC653FA31 /* FeedCards.swift */; };
 		8DF9223F032D2B92EE064354 /* FallbackParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5D6271CEA451300253DD6DB /* FallbackParser.swift */; };
 		93F8D7D2D8202BA71431A6AF /* LocationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86B75E0BFBB9921E0DD9CF49 /* LocationPickerView.swift */; };
@@ -105,7 +104,6 @@
 		9D019ECEAF58E3C9FA346765 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		A444FAEB2B7A9D1D3D26C604 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A7520F85794A2C9D29553651 /* ReturnVisitNotebookTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = ReturnVisitNotebookTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		AAFC6F22710D4B9F9B428F71 /* HeroTransition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroTransition.swift; sourceTree = "<group>"; };
 		ACD3C982FB51C9D4A71F1843 /* App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App.swift; sourceTree = "<group>"; };
 		B03E83CBF11F80ECC81CF361 /* ReturnHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReturnHint.swift; sourceTree = "<group>"; };
 		B3D487D960DD607E97809A6F /* FallbackParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FallbackParserTests.swift; sourceTree = "<group>"; };
@@ -170,7 +168,6 @@
 				243173D872A6DD05EAA782E6 /* ChatView.swift */,
 				BD2D40F298F7B4DA1E9AF993 /* ExploreView.swift */,
 				4A8DC196AE63B41BC653FA31 /* FeedCards.swift */,
-				AAFC6F22710D4B9F9B428F71 /* HeroTransition.swift */,
 				68B9CAAE3D1753DB530F42A7 /* ImagePicker.swift */,
 				2F25FCA46499BACDD59773BA /* InlineLinkRows.swift */,
 				6E6387E8D2EC21E98E9B86A9 /* LocationActionView.swift */,
@@ -383,7 +380,6 @@
 				8DF9223F032D2B92EE064354 /* FallbackParser.swift in Sources */,
 				8924D41C5B7C8784F234792A /* FeedCards.swift in Sources */,
 				3FCB24C706D25D0BE5DE25D8 /* Geocoder.swift in Sources */,
-				7F5F46A438C64829C8589DBE /* HeroTransition.swift in Sources */,
 				00D903CC565CBC60B67AEAF4 /* ImagePicker.swift in Sources */,
 				FF8CBD8ABC451644D03F62C6 /* InlineLinkRows.swift in Sources */,
 				96827E3047DCF7A6F6537B03 /* InterestLevel.swift in Sources */,

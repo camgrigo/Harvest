@@ -16,13 +16,6 @@ struct DroppedPin: Identifiable {
 enum MapTarget: Hashable {
     case person(Person)
     case territory(Territory)
-
-    var id: UUID {
-        switch self {
-        case .person(let p): p.id
-        case .territory(let t): t.id
-        }
-    }
 }
 
 /// One entry in the unified feed below the map.
@@ -77,8 +70,6 @@ struct ExploreView: View {
     @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
-    @State private var hero = HeroState()
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -108,7 +99,7 @@ struct ExploreView: View {
                 focusMap(on: target)
             }
             .sheet(isPresented: .constant(true)) {
-                PeoplePanelContent(people: people, territories: territories, selected: $selected, hero: hero)
+                PeoplePanelContent(people: people, territories: territories, selected: $selected)
                     .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
                     .presentationContentInteraction(.scrolls)
@@ -235,7 +226,6 @@ private struct PeoplePanelContent: View {
     let people: [Person]
     let territories: [Territory]
     @Binding var selected: MapTarget?
-    let hero: HeroState
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
@@ -248,7 +238,6 @@ private struct PeoplePanelContent: View {
     @State private var territoryToDelete: Territory?
     @State private var showingScan = false
     @State private var showNotebook = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -348,6 +337,14 @@ private struct PeoplePanelContent: View {
             // Tap-to-chat with the notebook, pinned to the bottom of the panel.
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(item: $selected) { target in
+                switch target {
+                case .person(let person):
+                    PersonDetailView(person: person)
+                case .territory(let territory):
+                    TerritoryDetailView(territory: territory)
+                }
+            }
             .navigationDestination(isPresented: $showNotebook) {
                 ConversationView(person: nil, autofocusInput: true)
                     .navigationTitle("Notebook")
@@ -391,88 +388,7 @@ private struct PeoplePanelContent: View {
             .task {
                 if userLocation == nil { await refreshLocation() }
             }
-            // Hand-rolled, symmetric "magic move": the detail is hosted here (not pushed) and
-            // scales + fades from the tapped card to full screen — and back again on swipe / back /
-            // delete. Hosted inside the NavigationStack so it paints above the feed (the panel is
-            // its own .sheet presentation layer).
-            .overlayPreferenceValue(CardAnchorKey.self) { anchors in
-                GeometryReader { proxy in
-                    if let target = selected {
-                        let card = anchors[target.id].map { proxy[$0] }
-                            ?? Self.centeredFallback(in: proxy.size)
-                        NavigationStack {
-                            detailView(target)
-                                .environment(\.heroDismiss, HeroDismissAction { heroClose() })
-                        }
-                        .modifier(HeroScale(progress: hero.progress, card: card, container: proxy.size))
-                        .overlay(alignment: .leading) { edgeBackHandle(width: proxy.size.width) }
-                        .onAppear {
-                            withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
-                                hero.progress = 1
-                            }
-                        }
-                    }
-                }
-                .ignoresSafeArea()
-                .onChange(of: hero.progress) { _, p in
-                    if p <= 0.001 { selected = nil; hero.sourceID = nil }
-                }
-            }
         }
-    }
-
-    // MARK: Hero transition
-
-    /// Card tap: stamp the source card, then show the detail overlay — its `.onAppear` grows the
-    /// hero from the card to full screen.
-    private func present(_ target: MapTarget) {
-        hero.sourceID = target.id
-        hero.progress = 0
-        selected = target
-    }
-
-    /// Reverse the hero — shrink the detail back into the card. `selected`/`sourceID` clear when
-    /// progress reaches 0 (via the overlay's `onChange`).
-    private func heroClose() {
-        withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
-            hero.progress = 0
-        }
-    }
-
-    @ViewBuilder
-    private func detailView(_ target: MapTarget) -> some View {
-        switch target {
-        case .person(let person): PersonDetailView(person: person)
-        case .territory(let territory): TerritoryDetailView(territory: territory)
-        }
-    }
-
-    /// A thin left-edge strip that drives the reverse hero interactively (finger-tracked swipe),
-    /// the symmetric counterpart of the native edge-swipe back.
-    private func edgeBackHandle(width: CGFloat) -> some View {
-        Color.clear
-            .frame(width: 24)
-            .frame(maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 8)
-                    .onChanged { value in
-                        guard value.startLocation.x < 30 else { return }
-                        hero.progress = max(0, min(1, 1 - value.translation.width / max(width, 1)))
-                    }
-                    .onEnded { value in
-                        let p = 1 - value.translation.width / max(width, 1)
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                            hero.progress = p < 0.6 ? 0 : 1
-                        }
-                    }
-            )
-    }
-
-    /// No card frame (map-pin tap) → grow from a centered rect: a plain scale-up + fade.
-    private static func centeredFallback(in size: CGSize) -> CGRect {
-        let w = size.width * 0.6, h = size.height * 0.4
-        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
     }
 
     // MARK: Add
@@ -569,13 +485,11 @@ private struct PeoplePanelContent: View {
         switch item {
         case .person(let person):
             Button {
-                present(.person(person))
+                selected = .person(person)
             } label: {
                 PersonCard(person: person, distanceText: distanceText(for: person.coordinate))
             }
             .buttonStyle(.plain)
-            .cardAnchor(person.id)
-            .opacity(selected?.id == person.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     personToDelete = person
@@ -585,13 +499,11 @@ private struct PeoplePanelContent: View {
             }
         case .territory(let territory):
             Button {
-                present(.territory(territory))
+                selected = .territory(territory)
             } label: {
                 TerritoryCard(territory: territory, distanceText: distanceText(for: territory.coordinate))
             }
             .buttonStyle(.plain)
-            .cardAnchor(territory.id)
-            .opacity(selected?.id == territory.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     territoryToDelete = territory
