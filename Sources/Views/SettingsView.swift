@@ -1,19 +1,21 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import UIKit
 
-/// A plain file wrapper around the encrypted backup blob, for `.fileExporter`.
-struct BackupDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.data] }
-    var data: Data
+/// A sharable reference to the encrypted backup, written to a temp file.
+private struct ShareItem: Identifiable {
+    let id = UUID()
+    let url: URL
+}
 
-    init(data: Data) { self.data = data }
-    init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
+/// The system share sheet (AirDrop, Messages, Mail, Save to Files, …) for the backup file.
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
-    }
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 /// Backup & restore. Export the whole notebook as one passphrase-encrypted file; restore replaces
@@ -23,8 +25,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var passphrase = ""
-    @State private var exportData: Data?
-    @State private var showExporter = false
+    @State private var shareItem: ShareItem?
 
     @State private var importPassphrase = ""
     @State private var pendingImport: Data?
@@ -83,11 +84,8 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
-            .fileExporter(isPresented: $showExporter,
-                          document: BackupDocument(data: exportData ?? Data()),
-                          contentType: .data,
-                          defaultFilename: defaultFilename) { result in
-                if case .failure(let error) = result { alertMessage = error.localizedDescription }
+            .sheet(item: $shareItem) { item in
+                ShareSheet(items: [item.url])
             }
             .fileImporter(isPresented: $showImporter, allowedContentTypes: [.data]) { result in
                 handleImportPick(result)
@@ -110,8 +108,11 @@ struct SettingsView: View {
 
     private func export() {
         do {
-            exportData = try BackupService.makeBackup(context: context, passphrase: passphrase)
-            showExporter = true
+            let data = try BackupService.makeBackup(context: context, passphrase: passphrase)
+            let url = FileManager.default.temporaryDirectory
+                .appendingPathComponent("\(defaultFilename).harvestbackup")
+            try data.write(to: url, options: .atomic)
+            shareItem = ShareItem(url: url)
         } catch {
             alertMessage = error.localizedDescription
         }
