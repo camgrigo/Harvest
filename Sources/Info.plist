@@ -20,8 +20,8 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Lets you pick a calendar and add your service plans to it.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Adds your service plans to Apple Calendar when you ask.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Scans a territory card to read its do-not-call list and find its location.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
