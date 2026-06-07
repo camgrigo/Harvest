@@ -57,6 +57,26 @@ final class FallbackParserTests: XCTestCase {
         XCTAssertEqual(FallbackParser.parse("Met Maria, she seemed interested").intent, .logVisit)
     }
 
+    // MARK: Reminder edits
+
+    func testPushRescheduleIsEdit() {
+        let pushed = FallbackParser.parse("Push Maria to Friday")
+        XCTAssertEqual(pushed.intent, .editPerson)
+        XCTAssertEqual(pushed.personName, "Maria")
+        let friday = try? XCTUnwrap(DateFormatter.ymd.date(from: pushed.followUpDate))
+        XCTAssertNotNil(friday)
+
+        let rescheduled = FallbackParser.parse("Reschedule Maria to next week")
+        XCTAssertEqual(rescheduled.intent, .editPerson)
+        XCTAssertEqual(rescheduled.personName, "Maria")
+    }
+
+    func testClearReminderIsEdit() {
+        let parsed = FallbackParser.parse("Clear Maria's reminder")
+        XCTAssertEqual(parsed.intent, .editPerson)
+        XCTAssertEqual(parsed.personName, "Maria")
+    }
+
     // MARK: Name detection
 
     func testNameAfterVisitVerb() {

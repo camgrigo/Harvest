@@ -74,6 +74,9 @@ struct TerritoryDetailView: View {
         .navigationTitle(territory.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
+            }
             ToolbarItem(placement: .topBarTrailing) { overflowMenu }
         }
         .safeAreaInset(edge: .bottom) { bottomBar }
@@ -282,8 +285,6 @@ struct TerritoryDetailView: View {
                 } label: { Label("Remove image", systemImage: "photo.badge.minus") }
             }
 
-            ShareLink(item: shareText) { Label("Share", systemImage: "square.and.arrow.up") }
-
             Divider()
 
             Button(role: .destructive) {
@@ -296,7 +297,24 @@ struct TerritoryDetailView: View {
 
     private var bottomBar: some View {
         VStack(spacing: 10) {
-            // Live matches for what you're typing — a small dropdown right above the field.
+            // Type-to-add field on top, so it stays visible above the keyboard while you type.
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Type an address to add…", text: $typed)
+                    .textFieldStyle(.plain)
+                    .autocorrectionDisabled()
+                if !typed.isEmpty {
+                    Button { typed = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .glassEffect(in: Capsule())
+
+            // Live matches for what you're typing — right below the field.
             if !typed.isEmpty {
                 VStack(spacing: 0) {
                     if liveResults.isEmpty {
@@ -336,22 +354,6 @@ struct TerritoryDetailView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(isAdding)
-
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Type an address to add…", text: $typed)
-                    .textFieldStyle(.plain)
-                    .autocorrectionDisabled()
-                if !typed.isEmpty {
-                    Button { typed = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .glassEffect(in: Capsule())
         }
         .padding()
         .background(.bar)
