@@ -1,0 +1,75 @@
+name: ReturnVisitNotebook
+options:
+  bundleIdPrefix: com.camgrigo
+  deploymentTarget:
+    iOS: "26.0"
+  developmentLanguage: en
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  ReturnVisitNotebook:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Harvest
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSLocationWhenInUseUsageDescription: >-
+          Shows your return visits on the map and where you are in relation to them.
+        NSMicrophoneUsageDescription: >-
+          Lets you dictate a note by voice instead of typing it.
+        NSSpeechRecognitionUsageDescription: >-
+          Turns your dictated note into text. Speech is processed on your device.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebook
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: SYPHAMSPW3
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+  ReturnVisitNotebookTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: ReturnVisitNotebook
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebookTests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+  ReturnVisitNotebookUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - UITests
+    dependencies:
+      - target: ReturnVisitNotebook
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebookUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+schemes:
+  ReturnVisitNotebook:
+    build:
+      targets:
+        ReturnVisitNotebook: all
+    test:
+      targets:
+        - ReturnVisitNotebookTests
+        - ReturnVisitNotebookUITests
