@@ -117,6 +117,7 @@ struct PersonCard: View {
                         Image(systemName: person.interest.symbol)
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(.primary)
+                            .accessibilityLabel(person.interest.label)
                     }
                     Spacer(minLength: 0)
                 }
@@ -148,6 +149,7 @@ struct PersonCard: View {
         RowLookAround(coordinate: coordinate, distanceText: distanceText)
             .frame(width: Self.thumbWidth)
             .frame(maxHeight: .infinity)
+            .accessibilityHidden(true)
     }
 
     private func dueText(for person: Person) -> String? {
@@ -191,6 +193,7 @@ struct TerritoryCard: View {
                         .scaledToFit()
                         .frame(width: 15, height: 15)
                         .foregroundStyle(.primary)
+                        .accessibilityHidden(true)
                     Spacer(minLength: 0)
                 }
                 Text(subtitle)
@@ -224,6 +227,7 @@ struct TerritoryCard: View {
                         .scaledToFit()
                         .frame(width: 40, height: 40)
                         .foregroundStyle(.tint)
+                        .accessibilityHidden(true)
                 }
             if let distanceText {
                 Text(distanceText)

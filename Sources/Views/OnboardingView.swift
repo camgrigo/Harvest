@@ -27,7 +27,7 @@ struct OnboardingView: View {
                 point("map.fill", "People and territories on one map",
                       "Anyone with an address shows up as a pin, directions a tap away. Start a territory to log not-at-homes as you walk — all on the same map.")
                 point("lock.fill", "Stays on your iPhone",
-                      "Everything runs on-device. Names, addresses, and notes never leave your phone.")
+                      "Everything runs on-device — names, addresses, and notes never leave your phone. Make an encrypted backup any time from Settings.")
             }
             .padding(.top, 28)
 

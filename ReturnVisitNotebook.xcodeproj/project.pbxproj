@@ -46,6 +46,7 @@
 		B007C55AFCDC731217CF2420 /* FallbackParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D487D960DD607E97809A6F /* FallbackParserTests.swift */; };
 		B6110FCE90403B7F2A0DCC30 /* TextRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FDB2D716FF95661EE4588D0 /* TextRecognizer.swift */; };
 		CAC56CDD1E748A3057FF2D8B /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45551D3C97120E84CA6BC473 /* NotificationCoordinator.swift */; };
+		CB96DAA1591CD098F70DBAA8 /* ExplorePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387020884A1BCD1B8988FE59 /* ExplorePanel.swift */; };
 		D32C4BADB23777BBF94E0DAA /* PromotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E72C112A3C1C9B38B861643 /* PromotionTests.swift */; };
 		D9D6C905BDEBCA510C82B58E /* Territory.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDAF961EB8C5F2A499DFFAAF /* Territory.swift */; };
 		DDB0B061610C9D4FDA26A412 /* Person.swift in Sources */ = {isa = PBXBuildFile; fileRef = E676FD3B6C236E0930C2B6FD /* Person.swift */; };
@@ -87,6 +88,7 @@
 		2D4D6ADC0CB7A00661972470 /* Geocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geocoder.swift; sourceTree = "<group>"; };
 		2F25FCA46499BACDD59773BA /* InlineLinkRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineLinkRows.swift; sourceTree = "<group>"; };
 		317381BC98BB99801AB8642A /* DoNotCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoNotCall.swift; sourceTree = "<group>"; };
+		387020884A1BCD1B8988FE59 /* ExplorePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePanel.swift; sourceTree = "<group>"; };
 		39369B88B8EF2A7EC8330457 /* NotebookEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookEngine.swift; sourceTree = "<group>"; };
 		3AE74501DC029B06F7555876 /* BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupService.swift; sourceTree = "<group>"; };
 		3B78C51D293CF9B526D66D24 /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriber.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 			children = (
 				CF268F9303EC9D5185E67B88 /* AddTerritoryInline.swift */,
 				243173D872A6DD05EAA782E6 /* ChatView.swift */,
+				387020884A1BCD1B8988FE59 /* ExplorePanel.swift */,
 				BD2D40F298F7B4DA1E9AF993 /* ExploreView.swift */,
 				4A8DC196AE63B41BC653FA31 /* FeedCards.swift */,
 				68B9CAAE3D1753DB530F42A7 /* ImagePicker.swift */,
@@ -391,6 +394,7 @@
 				AE4A170E54D7E2F526F41245 /* CurrentLocationProvider.swift in Sources */,
 				7837D7EEF8B09EF206AAD06B /* DateHelpers.swift in Sources */,
 				1E296517785A85CA57CB3DE7 /* DoNotCall.swift in Sources */,
+				CB96DAA1591CD098F70DBAA8 /* ExplorePanel.swift in Sources */,
 				579F698F36540D89F8E7CEC6 /* ExploreView.swift in Sources */,
 				8DF9223F032D2B92EE064354 /* FallbackParser.swift in Sources */,
 				8924D41C5B7C8784F234792A /* FeedCards.swift in Sources */,
