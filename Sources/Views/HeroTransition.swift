@@ -19,28 +19,22 @@ extension View {
     }
 }
 
-/// Drives the hand-rolled card → detail "magic move". `sourceID` is the tapped card (nil for a
-/// map-pin tap → centered fallback), `progress` runs 0 (over the card) → 1 (full page), and
-/// `presenting` gates the cosmetic overlay. Main-actor `@Observable`, mutated only on the main
-/// actor (panel + ExploreView), so it's clean under strict concurrency.
+/// Drives the hand-rolled, symmetric card ⇄ detail "magic move". `sourceID` is the tapped card
+/// (nil for a map-pin tap → centered fallback). `progress` runs 0 (over the card) → 1 (full
+/// screen) on the way in and back to 0 on the way out — the same value powers both directions,
+/// so forward and reverse are mirror images. Main-actor `@Observable`.
 @MainActor
 @Observable
 final class HeroState {
     var sourceID: UUID?
     var progress: CGFloat = 0
-    var presenting = false
-
-    func reset() {
-        sourceID = nil
-        progress = 0
-        presenting = false
-    }
 }
 
-/// Grows a view from `card` (source rect, container space) to fill `container`, rounding its
-/// corners out and fading over the last 15% so the real page pushed underneath is revealed.
-/// All motion comes from interpolating the single `progress` value.
-struct HeroFrame: ViewModifier, Animatable {
+/// Scales + fades a full-screen view from the `card` rect (progress 0) to identity (progress 1),
+/// centered, aspect-preserving. The cross-fade hides the scale distortion at low progress, so the
+/// real card behind shows through at the ends — making the move reversible without a separate
+/// panel. All motion is one interpolated `progress`.
+struct HeroScale: ViewModifier, Animatable {
     var progress: CGFloat
     let card: CGRect
     let container: CGSize
@@ -52,14 +46,34 @@ struct HeroFrame: ViewModifier, Animatable {
 
     func body(content: Content) -> some View {
         let p = max(0, min(1, progress))
-        let w = card.width + (container.width - card.width) * p
-        let h = card.height + (container.height - card.height) * p
-        let cx = card.midX + (container.width / 2 - card.midX) * p
-        let cy = card.midY + (container.height / 2 - card.midY) * p
+        let base: CGFloat = (container.width > 0 && container.height > 0
+                             && card.width > 0 && card.height > 0)
+            ? min(card.width / container.width, card.height / container.height) : 1
+        let scale = base + (1 - base) * p
+        let dx = (card.midX - container.width / 2) * (1 - p)
+        let dy = (card.midY - container.height / 2) * (1 - p)
         content
-            .frame(width: max(w, 1), height: max(h, 1))
-            .clipShape(RoundedRectangle(cornerRadius: 16 * (1 - p), style: .continuous))
-            .position(x: cx, y: cy)
-            .opacity(p <= 0.85 ? 1 : Double(max(0, 1 - (p - 0.85) / 0.15)))
+            .scaleEffect(scale, anchor: .center)
+            .offset(x: dx, y: dy)
+            .opacity(Double(min(1, p * 2.4)))   // solid by ~42% in; fades the same way out
+    }
+}
+
+/// Lets a detail view (hosted in the hero overlay, not a real push) ask the panel to play the
+/// reverse hero instead of the no-op `@Environment(\.dismiss)`. Falls back to `dismiss` when the
+/// view is presented some other way (e.g. the notification sheet).
+struct HeroDismissAction: @unchecked Sendable {
+    let action: () -> Void
+    func callAsFunction() { action() }
+}
+
+private struct HeroDismissKey: EnvironmentKey {
+    static let defaultValue: HeroDismissAction? = nil
+}
+
+extension EnvironmentValues {
+    var heroDismiss: HeroDismissAction? {
+        get { self[HeroDismissKey.self] }
+        set { self[HeroDismissKey.self] = newValue }
     }
 }

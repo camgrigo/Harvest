@@ -20,6 +20,7 @@ struct PersonDetailView: View {
     @State private var suppressRegeocode = false
     @State private var lookAroundScene: MKLookAroundScene?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.heroDismiss) private var heroDismiss
 
     var body: some View {
         Form {
@@ -41,6 +42,9 @@ struct PersonDetailView: View {
         .navigationTitle(person.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { close() } label: { Image(systemName: "chevron.backward") }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
             }
@@ -309,11 +313,16 @@ struct PersonDetailView: View {
         summary = await assistant.summarize(name: person.name, entries: person.sortedEntries)
     }
 
+    /// Reverse the hero transition (when presented that way), else a normal dismiss.
+    private func close() {
+        if let heroDismiss { heroDismiss() } else { dismiss() }
+    }
+
     private func deletePerson() {
         ReminderScheduler.shared.cancel(id: person.id)
         context.delete(person)
         context.saveIfPossible()
-        dismiss()
+        close()
     }
 
     private func regeocode() {

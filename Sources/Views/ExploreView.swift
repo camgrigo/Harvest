@@ -16,6 +16,13 @@ struct DroppedPin: Identifiable {
 enum MapTarget: Hashable {
     case person(Person)
     case territory(Territory)
+
+    var id: UUID {
+        switch self {
+        case .person(let p): p.id
+        case .territory(let t): t.id
+        }
+    }
 }
 
 /// One entry in the unified feed below the map.
@@ -99,11 +106,6 @@ struct ExploreView: View {
             }
             .onChange(of: selected) { _, target in
                 focusMap(on: target)
-                // Map-pin tap (no card source) → present the hero with a centered fallback.
-                if target != nil, hero.sourceID == nil, !reduceMotion {
-                    hero.progress = 0
-                    hero.presenting = true
-                }
             }
             .sheet(isPresented: .constant(true)) {
                 PeoplePanelContent(people: people, territories: territories, selected: $selected, hero: hero)
@@ -346,16 +348,6 @@ private struct PeoplePanelContent: View {
             // Tap-to-chat with the notebook, pinned to the bottom of the panel.
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(item: $selected) { target in
-                switch target {
-                case .person(let person):
-                    PersonDetailView(person: person)
-                        .onAppear { growHero() }
-                case .territory(let territory):
-                    TerritoryDetailView(territory: territory)
-                        .onAppear { growHero() }
-                }
-            }
             .navigationDestination(isPresented: $showNotebook) {
                 ConversationView(person: nil, autofocusInput: true)
                     .navigationTitle("Notebook")
@@ -399,23 +391,31 @@ private struct PeoplePanelContent: View {
             .task {
                 if userLocation == nil { await refreshLocation() }
             }
-            // Hand-rolled "magic move": a glass panel grows from the tapped card to full screen,
-            // revealing the pushed detail underneath. Hosted inside the NavigationStack so it paints
-            // above both the feed and the detail (the panel is its own .sheet presentation layer).
+            // Hand-rolled, symmetric "magic move": the detail is hosted here (not pushed) and
+            // scales + fades from the tapped card to full screen — and back again on swipe / back /
+            // delete. Hosted inside the NavigationStack so it paints above the feed (the panel is
+            // its own .sheet presentation layer).
             .overlayPreferenceValue(CardAnchorKey.self) { anchors in
                 GeometryReader { proxy in
-                    if hero.presenting {
-                        let card = hero.sourceID.flatMap { anchors[$0] }.map { proxy[$0] }
+                    if let target = selected {
+                        let card = anchors[target.id].map { proxy[$0] }
                             ?? Self.centeredFallback(in: proxy.size)
-                        Rectangle()
-                            .fill(.regularMaterial)
-                            .modifier(HeroFrame(progress: hero.progress, card: card, container: proxy.size))
-                            .allowsHitTesting(false)
+                        NavigationStack {
+                            detailView(target)
+                                .environment(\.heroDismiss, HeroDismissAction { heroClose() })
+                        }
+                        .modifier(HeroScale(progress: hero.progress, card: card, container: proxy.size))
+                        .overlay(alignment: .leading) { edgeBackHandle(width: proxy.size.width) }
+                        .onAppear {
+                            withAnimation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.82)) {
+                                hero.progress = 1
+                            }
+                        }
                     }
                 }
                 .ignoresSafeArea()
                 .onChange(of: hero.progress) { _, p in
-                    if p >= 0.999 { hero.reset() }   // forward grow landed → drop the overlay
+                    if p <= 0.001 { selected = nil; hero.sourceID = nil }
                 }
             }
         }
@@ -423,24 +423,50 @@ private struct PeoplePanelContent: View {
 
     // MARK: Hero transition
 
-    /// Card tap: stamp the source, mount the overlay over the card, then push the real page with
-    /// the native slide suppressed so only the overlay animates. Reduce Motion → plain push.
-    private func openHero(sourceID: UUID, target: MapTarget) {
-        guard !reduceMotion else { selected = target; return }
-        hero.sourceID = sourceID
+    /// Card tap: stamp the source card, then show the detail overlay — its `.onAppear` grows the
+    /// hero from the card to full screen.
+    private func present(_ target: MapTarget) {
+        hero.sourceID = target.id
         hero.progress = 0
-        hero.presenting = true
-        var txn = Transaction()
-        txn.disablesAnimations = true
-        withTransaction(txn) { selected = target }
+        selected = target
     }
 
-    /// Grow the overlay once the real page is mounted underneath (from the destination's onAppear).
-    private func growHero() {
-        guard hero.presenting else { return }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-            hero.progress = 1
+    /// Reverse the hero — shrink the detail back into the card. `selected`/`sourceID` clear when
+    /// progress reaches 0 (via the overlay's `onChange`).
+    private func heroClose() {
+        withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) {
+            hero.progress = 0
         }
+    }
+
+    @ViewBuilder
+    private func detailView(_ target: MapTarget) -> some View {
+        switch target {
+        case .person(let person): PersonDetailView(person: person)
+        case .territory(let territory): TerritoryDetailView(territory: territory)
+        }
+    }
+
+    /// A thin left-edge strip that drives the reverse hero interactively (finger-tracked swipe),
+    /// the symmetric counterpart of the native edge-swipe back.
+    private func edgeBackHandle(width: CGFloat) -> some View {
+        Color.clear
+            .frame(width: 24)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 8)
+                    .onChanged { value in
+                        guard value.startLocation.x < 30 else { return }
+                        hero.progress = max(0, min(1, 1 - value.translation.width / max(width, 1)))
+                    }
+                    .onEnded { value in
+                        let p = 1 - value.translation.width / max(width, 1)
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                            hero.progress = p < 0.6 ? 0 : 1
+                        }
+                    }
+            )
     }
 
     /// No card frame (map-pin tap) → grow from a centered rect: a plain scale-up + fade.
@@ -543,13 +569,13 @@ private struct PeoplePanelContent: View {
         switch item {
         case .person(let person):
             Button {
-                openHero(sourceID: person.id, target: .person(person))
+                present(.person(person))
             } label: {
                 PersonCard(person: person, distanceText: distanceText(for: person.coordinate))
             }
             .buttonStyle(.plain)
             .cardAnchor(person.id)
-            .opacity(hero.presenting && hero.sourceID == person.id ? 0 : 1)
+            .opacity(selected?.id == person.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     personToDelete = person
@@ -559,13 +585,13 @@ private struct PeoplePanelContent: View {
             }
         case .territory(let territory):
             Button {
-                openHero(sourceID: territory.id, target: .territory(territory))
+                present(.territory(territory))
             } label: {
                 TerritoryCard(territory: territory, distanceText: distanceText(for: territory.coordinate))
             }
             .buttonStyle(.plain)
             .cardAnchor(territory.id)
-            .opacity(hero.presenting && hero.sourceID == territory.id ? 0 : 1)
+            .opacity(selected?.id == territory.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     territoryToDelete = territory

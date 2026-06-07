@@ -17,6 +17,7 @@ struct TerritoryDetailView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @Environment(\.heroDismiss) private var heroDismiss
 
     @StateObject private var location = CurrentLocationProvider()
     @State private var isAdding = false
@@ -74,6 +75,9 @@ struct TerritoryDetailView: View {
         .navigationTitle(territory.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button { close() } label: { Image(systemName: "chevron.backward") }
+            }
             ToolbarItem(placement: .topBarTrailing) { overflowMenu }
         }
         .safeAreaInset(edge: .bottom) { bottomBar }
@@ -535,10 +539,14 @@ struct TerritoryDetailView: View {
         context.saveIfPossible()
     }
 
+    private func close() {
+        if let heroDismiss { heroDismiss() } else { dismiss() }
+    }
+
     private func deleteTerritory() {
         context.delete(territory)
         context.saveIfPossible()
-        dismiss()
+        close()
     }
 }
 
