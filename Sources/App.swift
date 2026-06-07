@@ -11,7 +11,8 @@ struct ReturnVisitNotebookApp: App {
         let uiTesting = ProcessInfo.processInfo.arguments.contains("-uitesting")
         do {
             container = try ModelContainer(
-                for: Person.self, JournalEntry.self, ChatMessage.self, NotAtHome.self,
+                for: Person.self, JournalEntry.self, ChatMessage.self,
+                     NotAtHome.self, Territory.self, DoNotCall.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: uiTesting)
             )
         } catch {
@@ -21,7 +22,7 @@ struct ReturnVisitNotebookApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView()
+            RootView()
                 .environmentObject(notifications)
                 .task { notifications.activate() }
         }

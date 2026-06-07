@@ -24,8 +24,8 @@ struct OnboardingView: View {
                       "Write what happened in your own words. It files the person, the note, and a reminder for you.")
                 point("sparkles", "Ask for a summary",
                       "You don't have to re-read anything — ask “Summarize Maria” or “Catch me up on this week.”")
-                point("map.fill", "See them on the map",
-                      "Anyone with an address shows up as a pin, with directions a tap away.")
+                point("map.fill", "People and territories on one map",
+                      "Anyone with an address shows up as a pin, directions a tap away. Start a territory to log not-at-homes as you walk — all on the same map.")
                 point("lock.fill", "Stays on your iPhone",
                       "Everything runs on-device. Names, addresses, and notes never leave your phone.")
             }

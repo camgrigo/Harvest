@@ -27,4 +27,13 @@ enum InterestLevel: String, Codable, CaseIterable, Identifiable {
         case .paused:     "pause.circle.fill"
         }
     }
+
+    /// Whether an answered door is worth keeping as a return visit. A fresh contact (.new) or an
+    /// active study (.studying) is; "None" (.interested) and .paused are not.
+    var isPromising: Bool {
+        switch self {
+        case .new, .studying:      true
+        case .interested, .paused: false   // .interested displays as "None"
+        }
+    }
 }

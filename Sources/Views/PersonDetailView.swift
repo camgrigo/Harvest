@@ -16,10 +16,20 @@ struct PersonDetailView: View {
     @State private var isEditing = false
     @State private var showReminderPicker = false
     @State private var showingDeleteConfirm = false
+    @State private var showMapPicker = false
+    @State private var suppressRegeocode = false
+    @State private var lookAroundScene: MKLookAroundScene?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
+            if let lookAroundScene {
+                Section {
+                    LookAroundPreview(initialScene: lookAroundScene)
+                        .frame(height: 180)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
             infoActionsSection
             if let summary {
                 Section { Text(summary).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -31,6 +41,9 @@ struct PersonDetailView: View {
         .navigationTitle(person.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isEditing ? "Done" : "Edit") {
                     withAnimation { isEditing.toggle() }
@@ -48,9 +61,45 @@ struct PersonDetailView: View {
         } message: {
             Text("All notes and visit history will be permanently removed.")
         }
+        .sheet(isPresented: $showMapPicker) {
+            LocationPickerView(initial: person.coordinate) { coord, addr in
+                person.latitude = coord.latitude
+                person.longitude = coord.longitude
+                let trimmed = addr.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, trimmed != person.addressText {
+                    suppressRegeocode = true
+                    person.addressText = trimmed
+                }
+                context.saveIfPossible()
+            }
+        }
         .onAppear { hasReminder = person.nextVisitDate != nil }
-        .onChange(of: person.addressText) { _, _ in regeocode() }
+        .onChange(of: person.addressText) { _, _ in
+            if suppressRegeocode { suppressRegeocode = false; return }
+            regeocode()
+        }
+        .task(id: coordKey) { await loadLookAround() }
         .safeAreaInset(edge: .bottom) { composerBar }
+    }
+
+    // MARK: Share
+
+    /// A plain-text card for the share sheet: name, address, status, next visit, and recent notes.
+    private var shareText: String {
+        var lines = [person.name]
+        if !person.addressText.isEmpty { lines.append(person.addressText) }
+        lines.append("Status: \(person.interest.label)")
+        if let next = person.nextVisitDate {
+            lines.append("Next visit: \(next.formatted(date: .abbreviated, time: .omitted))")
+        }
+        let entries = person.sortedEntries.reversed().prefix(5)
+        if !entries.isEmpty {
+            lines.append("\nNotes:")
+            lines.append(contentsOf: entries.map {
+                "• \($0.date.formatted(date: .abbreviated, time: .omitted)): \($0.text)"
+            })
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: Chat bar
@@ -63,7 +112,7 @@ struct PersonDetailView: View {
         } label: {
             HStack(spacing: 10) {
                 HStack {
-                    Text("Write a note or ask about \(person.name)…")
+                    Text("Note or ask…")
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
@@ -95,6 +144,11 @@ struct PersonDetailView: View {
             if isEditing {
                 TextField("Name", text: $person.name)
                 TextField("Address", text: $person.addressText, axis: .vertical)
+                Button {
+                    showMapPicker = true
+                } label: {
+                    Label("Choose on map", systemImage: "mappin.and.ellipse")
+                }
                 Picker("Status", selection: $person.interest) {
                     ForEach(InterestLevel.allCases) { level in
                         Label(level.label, systemImage: level.symbol).tag(level)
@@ -214,6 +268,22 @@ struct PersonDetailView: View {
     }
 
     // MARK: Actions
+
+    /// Changes whenever the pin moves, so the Look Around scene re-fetches on address edits.
+    private var coordKey: String {
+        guard let c = person.coordinate else { return "" }
+        return String(format: "%.5f,%.5f", c.latitude, c.longitude)
+    }
+
+    private func loadLookAround() async {
+        guard let c = person.coordinate else { lookAroundScene = nil; return }
+        lookAroundScene = await Self.loadScene(at: c)
+    }
+
+    /// Fetched off the main actor (the request/scene are non-Sendable); `sending` returns it safely.
+    private nonisolated static func loadScene(at coordinate: CLLocationCoordinate2D) async -> sending MKLookAroundScene? {
+        try? await MKLookAroundSceneRequest(coordinate: coordinate).scene
+    }
 
     private func makeSummary() async {
         isSummarizing = true

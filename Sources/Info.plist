@@ -20,10 +20,14 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Scans a territory card to read its do-not-call list and find its location.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Shows your return visits on the map and where you are in relation to them.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Lets you dictate a note by voice instead of typing it.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Lets you pick a photo of a territory to scan or attach.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Turns your dictated note into text. Speech is processed on your device.</string>
 	<key>UILaunchScreen</key>

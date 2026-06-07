@@ -30,6 +30,10 @@ targets:
           Lets you dictate a note by voice instead of typing it.
         NSSpeechRecognitionUsageDescription: >-
           Turns your dictated note into text. Speech is processed on your device.
+        NSCameraUsageDescription: >-
+          Scans a territory card to read its do-not-call list and find its location.
+        NSPhotoLibraryUsageDescription: >-
+          Lets you pick a photo of a territory to scan or attach.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebook

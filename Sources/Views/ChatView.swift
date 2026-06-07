@@ -233,7 +233,7 @@ struct ConversationView: View {
                 }
                 .accessibilityLabel(dictation.isRecording ? "Stop dictation" : "Dictate a note")
             }
-            TextField(dictation.isRecording ? "Listening…" : "Write a note…", text: $draft, axis: .vertical)
+            TextField(dictation.isRecording ? "Listening…" : "Note…", text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .focused($inputFocused)
                 .padding(.horizontal, 12)

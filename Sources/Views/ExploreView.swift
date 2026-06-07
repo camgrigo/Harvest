@@ -10,6 +10,49 @@ struct DroppedPin: Identifiable {
     let coordinate: CLLocationCoordinate2D
 }
 
+/// A selectable thing on the map and in the feed: a person (return visit) or a territory
+/// (house-to-house area). Shared by the map's selection and the list so a tap in either place
+/// focuses the map and pushes the matching detail screen.
+enum MapTarget: Hashable {
+    case person(Person)
+    case territory(Territory)
+}
+
+/// One entry in the unified feed below the map.
+enum FeedItem: Identifiable {
+    case person(Person)
+    case territory(Territory)
+
+    var id: String {
+        switch self {
+        case .person(let p): "p-\(p.id)"
+        case .territory(let t): "t-\(t.id)"
+        }
+    }
+}
+
+/// How the unified feed is ordered.
+private enum SortMode: String, CaseIterable, Identifiable {
+    case recent, nearest, due, name
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .recent:  "Recent"
+        case .nearest: "Nearest"
+        case .due:     "Due first"
+        case .name:    "Name"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .recent:  "clock"
+        case .nearest: "location"
+        case .due:     "bell"
+        case .name:    "textformat"
+        }
+    }
+}
+
 /// Map and people combined into one screen (Find My style): a full-bleed territory map with a
 /// native bottom sheet of people that floats above it (background interaction stays enabled so
 /// the map is still pannable). Tapping a pin opens that person in the sheet; touch and hold the
@@ -18,27 +61,28 @@ struct ExploreView: View {
     @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Person> { !$0.isArchived },
            sort: \Person.createdAt, order: .reverse) private var people: [Person]
+    @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
 
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
-    @State private var selection: Person?
+    @State private var selected: MapTarget?
     @State private var dropped: DroppedPin?
     @State private var locationManager = CLLocationManager()
     @State private var detent: PresentationDetent = .medium
-    @State private var isPitched = false
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
 
-    /// Resting "peek" height that keeps the search field and a couple of rows visible.
-    private static let peek: PresentationDetent = .height(120)
+    /// Resting "peek" height that keeps the search field, a row, and the chat bar visible.
+    private static let peek: PresentationDetent = .height(168)
 
     /// Default detent when a person is selected — tall enough to show all their info without
     /// going full-screen, so the map pin stays visible above the sheet.
-    private static let selected: PresentationDetent = .fraction(0.7)
+    private static let selectedDetent: PresentationDetent = .fraction(0.7)
 
     private var located: [Person] { people.filter { $0.coordinate != nil } }
+    private var locatedTerritories: [Territory] { territories.filter { $0.coordinate != nil } }
 
     var body: some View {
         map
@@ -51,26 +95,13 @@ struct ExploreView: View {
                     withAnimation(.easeInOut) { camera = .region(region) }
                 }
             }
-            .onChange(of: selection) { _, newValue in
-                guard let person = newValue else { return }
-                if let coordinate = person.coordinate {
-                    // Focus the map on the tapped person's pin...
-                    withAnimation(.easeInOut) {
-                        camera = .region(MKCoordinateRegion(
-                            center: coordinate,
-                            latitudinalMeters: 400, longitudinalMeters: 400))
-                    }
-                    // ...and rest the sheet at 70 % so the pin stays visible above it.
-                    detent = Self.selected
-                } else {
-                    // No pin to focus — show the person's page in full.
-                    detent = .large
-                }
+            .onChange(of: selected) { _, target in
+                focusMap(on: target)
             }
             .sheet(isPresented: .constant(true)) {
-                PeoplePanelContent(people: people, selection: $selection)
-                    .presentationDetents([Self.peek, .medium, Self.selected, .large], selection: $detent)
-                    .presentationBackgroundInteraction(.enabled(upThrough: Self.selected))
+                PeoplePanelContent(people: people, territories: territories, selected: $selected)
+                    .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
+                    .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
                     .presentationContentInteraction(.scrolls)
                     .presentationBackground(.regularMaterial)
                     .interactiveDismissDisabled()
@@ -78,6 +109,33 @@ struct ExploreView: View {
                         LocationActionView(coordinate: pin.coordinate)
                     }
             }
+    }
+
+    /// Move the camera + rest the sheet to suit the newly selected item: a person frames their
+    /// pin at 70 %; a territory frames its area wider and opens the sheet tall (it's a work list).
+    private func focusMap(on target: MapTarget?) {
+        switch target {
+        case .person(let person):
+            if let coordinate = person.coordinate {
+                withAnimation(.easeInOut) {
+                    camera = .region(MKCoordinateRegion(
+                        center: coordinate, latitudinalMeters: 400, longitudinalMeters: 400))
+                }
+                detent = Self.selectedDetent
+            } else {
+                detent = .large
+            }
+        case .territory(let territory):
+            if let coordinate = territory.coordinate {
+                withAnimation(.easeInOut) {
+                    camera = .region(MKCoordinateRegion(
+                        center: coordinate, latitudinalMeters: 1200, longitudinalMeters: 1200))
+                }
+            }
+            detent = .large
+        case .none:
+            break
+        }
     }
 
     /// The opening region: centered on you, sized to include the farthest person within
@@ -115,79 +173,37 @@ struct ExploreView: View {
 
     private var map: some View {
         MapReader { proxy in
-            Map(position: $camera, selection: $selection) {
+            Map(position: $camera, selection: $selected) {
                 UserAnnotation()
                 ForEach(located) { person in
                     Marker(person.name,
                            systemImage: person.interest.symbol,
                            coordinate: person.coordinate!)
                         .tint(person.isDue ? .red : .blue)
-                        .tag(person)
+                        .tag(MapTarget.person(person))
+                }
+                ForEach(locatedTerritories) { territory in
+                    Marker(territory.name,
+                           image: "Territory",
+                           coordinate: territory.coordinate!)
+                        .tint(.orange)
+                        .tag(MapTarget.territory(territory))
                 }
                 if let dropped {
                     Marker("New pin", systemImage: "mappin", coordinate: dropped.coordinate)
                         .tint(.green)
                 }
             }
-            // Disable all built-in controls — we render our own overlay below.
-            .mapControls { }
+            // Native map controls — MapKit positions them within the safe area.
+            .mapControls {
+                MapUserLocationButton()
+                MapPitchToggle()
+                MapCompass()
+            }
             .gesture(dropPinGesture(proxy))
-            // Tiles bleed full-screen under the status bar.
-            .ignoresSafeArea(.container, edges: .top)
             // Keep the bottom clear of the resting sheet.
-            .safeAreaPadding(.bottom, 120)
-            // Custom nav buttons in an overlay that genuinely respects the safe area.
-            .overlay(alignment: .topTrailing) {
-                mapControls
-                    .padding(.top)            // one unit below the safe-area top edge
-                    .padding(.trailing, 8)
-                    .padding(.top, 4)         // tiny extra breathing room from the status bar
-            }
+            .safeAreaPadding(.bottom, 168)
         }
-    }
-
-    /// User-location, 2D/3D pitch, and a compass — styled to match MapKit's native buttons.
-    private var mapControls: some View {
-        VStack(spacing: 8) {
-            // Re-centre on the user.
-            Button {
-                withAnimation { camera = .userLocation(fallback: .automatic) }
-            } label: {
-                Image(systemName: "location.fill")
-                    .mapControlStyle()
-            }
-            .accessibilityLabel("My location")
-
-            // 2D / 3D pitch toggle.
-            Button {
-                isPitched.toggle()
-                withAnimation {
-                    if isPitched {
-                        camera = .camera(MapCamera(
-                            centerCoordinate: currentCenter,
-                            distance: 1500, heading: 0, pitch: 60))
-                    } else {
-                        camera = .camera(MapCamera(
-                            centerCoordinate: currentCenter,
-                            distance: 1500, heading: 0, pitch: 0))
-                    }
-                }
-            } label: {
-                Text(isPitched ? "2D" : "3D")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .mapControlStyle()
-            }
-            .accessibilityLabel(isPitched ? "Switch to 2D" : "Switch to 3D")
-        }
-    }
-
-    /// Best-effort current map center — prefers the camera's own coordinate, falls back to
-    /// the first located person, then a hard-coded coordinate.
-    private var currentCenter: CLLocationCoordinate2D {
-        if let c = camera.camera { return c.centerCoordinate }
-        if let r = camera.region { return r.center }
-        if let first = located.first?.coordinate { return first }
-        return CLLocationCoordinate2D(latitude: 0, longitude: 0)
     }
 
     /// Touch-and-hold, then read the press point and convert it to a map coordinate.
@@ -203,46 +219,101 @@ struct ExploreView: View {
     }
 }
 
-/// The people list shown inside the panel. Tapping a row (or a map pin) drives the same
-/// `selection`, which pushes the person's page within this stack.
+/// The unified feed shown inside the panel: people (return visits) and territories
+/// (house-to-house areas). Tapping a row — or a map pin — sets `selected`, which both focuses
+/// the map and pushes the matching detail screen within this stack.
 private struct PeoplePanelContent: View {
     let people: [Person]
-    @Binding var selection: Person?
+    let territories: [Territory]
+    @Binding var selected: MapTarget?
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
     @State private var search = ""
-    @State private var onlyDue = false
-    @State private var nearMe = true
+    @State private var sort: SortMode = .recent
+    @State private var showTerritories = true
     @State private var userLocation: CLLocation?
-    @State private var locating = false
-    @State private var showingAdd = false
-    @State private var showingFilters = false
+    @State private var addingTerritory = false
     @State private var personToDelete: Person?
+    @State private var territoryToDelete: Territory?
+    @State private var showingScan = false
+    @State private var showNotebook = false
+    @Namespace private var zoomNamespace
 
-    private var filtered: [Person] {
-        let base = people.filter { person in
-            (!onlyDue || person.isDue)
-            // "Near me" only makes sense for people we can place on the map.
-            && (!nearMe || person.coordinate != nil)
-            && (search.isEmpty
-                || person.name.localizedCaseInsensitiveContains(search)
-                || person.headline.localizedCaseInsensitiveContains(search))
+    private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
+
+    // MARK: Filtering / sorting
+
+    private var filteredPeople: [Person] {
+        people.filter { person in
+            search.isEmpty
+            || person.name.localizedCaseInsensitiveContains(search)
+            || person.headline.localizedCaseInsensitiveContains(search)
         }
-        guard nearMe, let userLocation else { return base }
-        return base.sorted { distance($0, from: userLocation) < distance($1, from: userLocation) }
     }
 
-    /// Straight-line distance from the user to a person's pin (huge value if unplaced, so they sink).
-    private func distance(_ person: Person, from origin: CLLocation) -> CLLocationDistance {
-        guard let c = person.coordinate else { return .greatestFiniteMagnitude }
+    private var filteredTerritories: [Territory] {
+        guard showTerritories else { return [] }
+        return territories.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+    }
+
+    /// People + territories merged, ordered by the chosen sort.
+    private var feed: [FeedItem] {
+        let items = filteredPeople.map(FeedItem.person) + filteredTerritories.map(FeedItem.territory)
+        switch sort {
+        case .recent:
+            return items.sorted { createdAt(of: $0) > createdAt(of: $1) }
+        case .nearest:
+            guard let userLocation else {
+                return items.sorted { createdAt(of: $0) > createdAt(of: $1) }
+            }
+            return items.sorted { distance(of: $0, from: userLocation) < distance(of: $1, from: userLocation) }
+        case .due:
+            return items.sorted { dueKey($0) < dueKey($1) }
+        case .name:
+            return items.sorted { nameKey($0).localizedCaseInsensitiveCompare(nameKey($1)) == .orderedAscending }
+        }
+    }
+
+    private func dueKey(_ item: FeedItem) -> Date {
+        switch item {
+        case .person(let p): p.nextVisitDate ?? .distantFuture
+        case .territory: .distantFuture
+        }
+    }
+
+    private func nameKey(_ item: FeedItem) -> String {
+        switch item {
+        case .person(let p): p.name
+        case .territory(let t): t.name
+        }
+    }
+
+    private func createdAt(of item: FeedItem) -> Date {
+        switch item {
+        case .person(let p): p.createdAt
+        case .territory(let t): t.createdAt
+        }
+    }
+
+    private func coordinate(of item: FeedItem) -> CLLocationCoordinate2D? {
+        switch item {
+        case .person(let p): p.coordinate
+        case .territory(let t): t.coordinate
+        }
+    }
+
+    private func distance(of item: FeedItem, from origin: CLLocation) -> CLLocationDistance {
+        guard let c = coordinate(of: item) else { return .greatestFiniteMagnitude }
         return CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: origin)
     }
 
-    /// Abbreviated, locale-aware distance ("0.3 mi") shown on each row in Near-me mode.
-    private func distanceText(for person: Person) -> String? {
-        guard nearMe, let userLocation, person.coordinate != nil else { return nil }
-        return Self.distanceFormatter.string(fromDistance: distance(person, from: userLocation))
+    /// Abbreviated, locale-aware distance ("0.3 mi") shown on a card when we know where you are.
+    private func distanceText(for coordinate: CLLocationCoordinate2D?) -> String? {
+        guard let userLocation, let coordinate else { return nil }
+        let meters = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+            .distance(from: userLocation)
+        return Self.distanceFormatter.string(fromDistance: meters)
     }
 
     private static let distanceFormatter: MKDistanceFormatter = {
@@ -251,88 +322,42 @@ private struct PeoplePanelContent: View {
         return formatter
     }()
 
+    // MARK: Body
+
     var body: some View {
         NavigationStack {
             Group {
-                if filtered.isEmpty && !showingAdd {
-                    ContentUnavailableView(
-                        people.isEmpty ? "No one yet" : "No matches",
-                        systemImage: people.isEmpty
-                            ? "person.crop.circle.badge.questionmark"
-                            : "magnifyingglass",
-                        description: Text(emptyDescription)
-                    )
-                    .overlay(alignment: .top) {
-                        if showingAdd {
-                            AddPersonInline { showingAdd = false }
-                                .padding()
-                        }
-                    }
+                if feed.isEmpty && !addingTerritory {
+                    emptyState
                 } else {
-                    List {
-                        if showingAdd {
-                            AddPersonInline { showingAdd = false }
-                                .listRowSeparator(.hidden)
-                                .listRowBackground(Color.clear)
-                                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        }
-                        ForEach(filtered) { person in
-                            Button {
-                                selection = person
-                            } label: {
-                                PersonCard(person: person, distanceText: distanceText(for: person))
-                            }
-                            .buttonStyle(.plain)
-                            .listRowSeparator(.hidden)
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button(role: .destructive) {
-                                    personToDelete = person
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    feedList
                 }
             }
-            // Filter options — shown below the search bar when the filter button is active.
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if showingFilters {
-                    filterStrip
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-            }
+            // Inline search + sort + territory toggle, pinned above the list.
+            .safeAreaInset(edge: .top, spacing: 0) { controlBar }
+            // Tap-to-chat with the notebook, pinned to the bottom of the panel.
+            .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: "Search names or notes")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) { showingFilters.toggle() }
-                    } label: {
-                        // Fill the icon whenever the panel is open OR a non-default filter is on.
-                        Image(systemName: (showingFilters || onlyDue)
-                              ? "line.3.horizontal.decrease.circle.fill"
-                              : "line.3.horizontal.decrease.circle")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
-                    .accessibilityLabel("Filters")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        withAnimation { showingAdd.toggle() }
-                    } label: {
-                        Image(systemName: showingAdd ? "xmark.circle.fill" : "plus")
-                            .contentTransition(.symbolEffect(.replace))
-                    }
+            .navigationDestination(item: $selected) { target in
+                switch target {
+                case .person(let person):
+                    PersonDetailView(person: person)
+                        .navigationTransition(.zoom(sourceID: person.id, in: zoomNamespace))
+                case .territory(let territory):
+                    TerritoryDetailView(territory: territory)
+                        .navigationTransition(.zoom(sourceID: territory.id, in: zoomNamespace))
                 }
             }
-            .navigationDestination(item: $selection) { person in
-                PersonDetailView(person: person)
+            .navigationDestination(isPresented: $showNotebook) {
+                ConversationView(person: nil, autofocusInput: true)
+                    .navigationTitle("Notebook")
+                    .navigationBarTitleDisplayMode(.inline)
+            }
+            .sheet(isPresented: $showingScan) {
+                ScanTerritoryView { territory in
+                    showingScan = false
+                    selected = .territory(territory)
+                }
             }
             .confirmationDialog(
                 "Delete \(personToDelete?.name ?? "")?",
@@ -348,42 +373,207 @@ private struct PeoplePanelContent: View {
             } message: {
                 Text("All notes and visit history will be permanently removed.")
             }
-            .onChange(of: nearMe) { _, on in
-                if on {
-                    Task { await refreshLocation() }
-                } else {
-                    userLocation = nil
+            .confirmationDialog(
+                "Delete \(territoryToDelete?.name ?? "")?",
+                isPresented: Binding(get: { territoryToDelete != nil },
+                                     set: { if !$0 { territoryToDelete = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let t = territoryToDelete { deleteTerritoryFromList(t) }
+                    territoryToDelete = nil
                 }
+                Button("Cancel", role: .cancel) { territoryToDelete = nil }
+            } message: {
+                Text("This territory and all its addresses will be permanently removed.")
             }
-            // "Near me" is on by default, so fetch the location once on appear
-            // (onChange won't fire for the initial value).
+            // Fetch location once for distance labels + the Nearest sort.
             .task {
-                if nearMe, userLocation == nil { await refreshLocation() }
+                if userLocation == nil { await refreshLocation() }
             }
         }
     }
 
-    /// A compact horizontal strip of filter toggles that drops in below the search bar.
-    private var filterStrip: some View {
+    // MARK: Add
+
+    /// Bottom composer: a leading add-menu, then a tap-to-chat field that opens the notebook
+    /// scratchpad with the keyboard up. "New person" lands in that same scratchpad.
+    private var notebookComposer: some View {
         HStack(spacing: 10) {
-            Toggle(isOn: $onlyDue) {
-                Label("Due", systemImage: "bell")
+            Menu {
+                Button {
+                    showNotebook = true
+                } label: { Label("New person", systemImage: "person.badge.plus") }
+                Button {
+                    withAnimation { addingTerritory = true }
+                } label: { Label("New territory", systemImage: "map") }
+                Button {
+                    showingScan = true
+                } label: { Label("Scan territory card", systemImage: "doc.text.viewfinder") }
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 30))
+                    .foregroundStyle(.tint)
             }
-            .toggleStyle(.button)
-            .controlSize(.small)
-            .disabled(people.isEmpty)
+            .accessibilityLabel("Add")
 
-            Toggle(isOn: $nearMe) {
-                Label(
-                    locating ? "Locating…" : "Near me",
-                    systemImage: locating ? "location.fill" : "location"
+            Button {
+                showNotebook = true
+            } label: {
+                HStack {
+                    Text("Jot a note")
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .glassEffect(in: Capsule())
+                .contentShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    // MARK: List
+
+    private var feedList: some View {
+        List {
+            if addingTerritory {
+                AddTerritoryInline(
+                    onCreated: { territory in
+                        addingTerritory = false
+                        selected = .territory(territory)
+                    },
+                    onCancel: { addingTerritory = false }
                 )
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             }
-            .toggleStyle(.button)
-            .controlSize(.small)
-            .disabled(people.isEmpty || locating)
+            if sort == .name {
+                // Sorting by name splits the feed into People / Territories sections.
+                let ppl = filteredPeople.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                let trs = filteredTerritories.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                if !ppl.isEmpty {
+                    Section("People") {
+                        ForEach(ppl) { styledRow(for: .person($0)) }
+                    }
+                }
+                if !trs.isEmpty {
+                    Section("Territories") {
+                        ForEach(trs) { styledRow(for: .territory($0)) }
+                    }
+                }
+            } else {
+                ForEach(feed) { styledRow(for: $0) }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
 
-            Spacer(minLength: 0)
+    private func styledRow(for item: FeedItem) -> some View {
+        row(for: item)
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+    }
+
+    @ViewBuilder
+    private func row(for item: FeedItem) -> some View {
+        switch item {
+        case .person(let person):
+            Button {
+                selected = .person(person)
+            } label: {
+                PersonCard(person: person, distanceText: distanceText(for: person.coordinate))
+            }
+            .buttonStyle(.plain)
+            .matchedTransitionSource(id: person.id, in: zoomNamespace)
+            .contextMenu {
+                Button(role: .destructive) {
+                    personToDelete = person
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        case .territory(let territory):
+            Button {
+                selected = .territory(territory)
+            } label: {
+                TerritoryCard(territory: territory, distanceText: distanceText(for: territory.coordinate))
+            }
+            .buttonStyle(.plain)
+            .matchedTransitionSource(id: territory.id, in: zoomNamespace)
+            .contextMenu {
+                Button(role: .destructive) {
+                    territoryToDelete = territory
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView(
+            allEmpty ? "Nothing yet" : "No matches",
+            systemImage: allEmpty ? "map" : "magnifyingglass",
+            description: Text(emptyDescription)
+        )
+    }
+
+    // MARK: Top controls
+
+    /// Inline search, a sort menu, and a show/hide-territories toggle — pinned above the list.
+    private var controlBar: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search", text: $search)
+                    .textFieldStyle(.plain)
+                    .submitLabel(.search)
+                if !search.isEmpty {
+                    Button { search = "" } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .glassEffect(in: Capsule())
+
+            Menu {
+                Picker("Sort by", selection: $sort) {
+                    ForEach(SortMode.allCases) { mode in
+                        Label(mode.label, systemImage: mode.symbol).tag(mode)
+                    }
+                }
+            } label: {
+                Image(systemName: "arrow.up.arrow.down")
+                    .frame(width: 40, height: 40)
+                    .glassEffect(in: Circle())
+            }
+            .accessibilityLabel("Sort")
+
+            Button {
+                withAnimation { showTerritories.toggle() }
+            } label: {
+                Image("Territory")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .foregroundStyle(showTerritories ? Color.accentColor : .secondary)
+                    .frame(width: 40, height: 40)
+                    .glassEffect(in: Circle())
+            }
+            .accessibilityLabel(showTerritories ? "Hide territories" : "Show territories")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -391,30 +581,23 @@ private struct PeoplePanelContent: View {
     }
 
     private var emptyDescription: String {
-        if people.isEmpty {
-            return "Tell the notebook about a visit, or touch and hold the map to drop a pin."
+        if allEmpty {
+            return "Tell the notebook about a visit, or tap + to start a territory."
         }
         if !search.isEmpty {
-            return "Try a different search term, or adjust your filters."
+            return "Try a different search term."
         }
-        if onlyDue && nearMe {
-            return "No one nearby has a visit due. Try turning off a filter."
+        if !showTerritories {
+            return "Territories are hidden — tap the map button to show them."
         }
-        if onlyDue {
-            return "No visits are due right now."
-        }
-        if nearMe {
-            return "No one with a map pin is nearby. Add an address so they show up here."
-        }
-        return "Try adjusting your filters."
+        return "Nothing to show."
     }
 
-    /// Read the device's location once; if it can't be obtained, drop back out of Near-me mode.
+    // MARK: Location + delete
+
+    /// Read the device's location once (best-effort) for distance labels + the Nearest sort.
     private func refreshLocation() async {
-        locating = true
         userLocation = await locator.current()
-        locating = false
-        if userLocation == nil { nearMe = false }
     }
 
     private func deleteFromList(_ person: Person) {
@@ -422,212 +605,9 @@ private struct PeoplePanelContent: View {
         context.delete(person)
         context.saveIfPossible()
     }
-}
 
-/// A square Look Around still of a person's address, loaded lazily per row.
-/// Falls back to a placeholder when Apple has no Look Around coverage for the spot.
-///
-/// Snapshots are cached (keyed by rounded coordinate) so scrolling a row off and back
-/// reuses the still instead of re-fetching and flashing the placeholder. Main-actor
-/// isolated, so the cached `UIImage`s never cross an isolation boundary.
-@MainActor
-private enum LookAroundCache {
-    static var images: [String: UIImage] = [:]
-
-    static func key(for coordinate: CLLocationCoordinate2D) -> String {
-        // ~1 m precision — plenty to dedupe the same address.
-        String(format: "%.5f,%.5f", coordinate.latitude, coordinate.longitude)
-    }
-}
-
-private struct RowLookAround: View {
-    let coordinate: CLLocationCoordinate2D
-    var side: CGFloat = 84
-
-    @State private var image: UIImage?
-    @State private var didLoad = false
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: side, height: side)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-            } else {
-                // No image yet (loading) or no coverage — invisible spacer keeps text aligned.
-                Color.clear.frame(width: side, height: side)
-            }
-        }
-        .task {
-            guard !didLoad else { return }
-            let key = LookAroundCache.key(for: coordinate)
-            if let cached = LookAroundCache.images[key] {
-                image = cached          // cache hit — no fetch, no flicker
-                didLoad = true
-                return
-            }
-            if let loaded = await Self.loadImage(at: coordinate) {
-                LookAroundCache.images[key] = loaded
-                image = loaded
-            }
-            didLoad = true
-        }
-    }
-
-    /// Fetches the scene and renders it to a still image off the main actor (both are
-    /// non-Sendable); `sending` lets the finished image cross back to the view safely.
-    private nonisolated static func loadImage(
-        at coordinate: CLLocationCoordinate2D
-    ) async -> sending UIImage? {
-        guard let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene else {
-            return nil
-        }
-        let options = MKLookAroundSnapshotter.Options()
-        options.size = CGSize(width: 400, height: 400)   // square, rendered at @1x points
-        options.pointOfInterestFilter = .excludingAll
-        guard let snapshot = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot else {
-            return nil
-        }
-        return snapshot.image
-    }
-}
-
-// MARK: - Person card
-
-/// A scannable card for one person: a square Look Around still (with distance badge
-/// overlaid), the name prefixed by a small status icon, a headline, and the reminder
-/// date at the bottom — all in a single glass card.
-private struct PersonCard: View {
-    let person: Person
-    let distanceText: String?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                // Name row — small status icon (only when status is set) before the name.
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    if person.interest != .interested {
-                        Image(systemName: person.interest.symbol)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.primary)
-                    }
-                    Text(person.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .accessibilityIdentifier("personRow.name")
-                    Spacer(minLength: 0)
-                }
-                if !person.headline.isEmpty {
-                    Text(person.headline)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                // Reminder date where the status chip used to be.
-                if let due = dueText(for: person) {
-                    Text(due)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(person.isDue ? .red : .secondary)
-                }
-            }
-            thumbnail
-        }
-        .padding(12)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    @ViewBuilder
-    private var thumbnail: some View {
-        if let coordinate = person.coordinate {
-            // Look Around still with the distance badge pinned to the bottom-leading corner.
-            ZStack(alignment: .bottomTrailing) {
-                RowLookAround(coordinate: coordinate)
-                if let distanceText {
-                    Text(distanceText)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.black.opacity(0.5),
-                                    in: RoundedRectangle(cornerRadius: 5))
-                        .padding(5)
-                }
-            }
-        } else {
-            // No coordinate — invisible spacer keeps text aligned with thumbnail cells.
-            Color.clear.frame(width: 84, height: 84)
-        }
-    }
-
-    /// A short, scannable due string: "Due today", "Overdue 3d", "Tomorrow", "in 5d",
-    /// or an abbreviated date when it's further out. nil when no reminder is set.
-    private func dueText(for person: Person) -> String? {
-        guard let date = person.nextVisitDate else { return nil }
-        let calendar = Calendar.current
-        let days = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: .now),
-            to: calendar.startOfDay(for: date)
-        ).day ?? 0
-
-        switch days {
-        case 0:    return "Due today"
-        case ..<0: return days == -1 ? "Overdue 1d" : "Overdue \(-days)d"
-        case 1:    return "Tomorrow"
-        case 2...14: return "in \(days)d"
-        default:   return date.formatted(.dateTime.month(.abbreviated).day())
-        }
-    }
-}
-
-private extension InterestLevel {
-    var tint: Color {
-        switch self {
-        case .new: .purple
-        case .interested: .green
-        case .studying: .blue
-        case .paused: .gray
-        }
-    }
-}
-
-private struct DuePill: View {
-    let text: String
-    let overdue: Bool
-
-    var body: some View {
-        Text(text)
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(overdue ? .red : .secondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .glassEffect(.regular, in: Capsule())
-    }
-}
-
-private struct InterestChip: View {
-    let interest: InterestLevel
-
-    var body: some View {
-        Label(interest.label, systemImage: interest.symbol)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(interest.tint)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .glassEffect(.regular, in: Capsule())
-    }
-}
-
-// MARK: - Map control button style
-
-private extension View {
-    /// iOS 26 glass circle — matches the system's native map control look.
-    func mapControlStyle() -> some View {
-        self
-            .frame(width: 42, height: 42)
-            .glassEffect(in: Circle())
+    private func deleteTerritoryFromList(_ territory: Territory) {
+        context.delete(territory)
+        context.saveIfPossible()
     }
 }

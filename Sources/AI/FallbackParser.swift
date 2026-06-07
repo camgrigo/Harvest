@@ -23,7 +23,13 @@ enum FallbackParser {
             || lower.contains("correct") || lower.contains("mark") || lower.contains("rename")
             || lower.contains("set ") || lower.contains("no longer") || lower.contains("actually")
             || lower.contains(" now ")
+        // Reminder edits: clearing it, or pushing/rescheduling an existing one.
+        let clearsReminder = (lower.contains("remind") || lower.contains("visit"))
+            && (lower.contains("clear") || lower.contains("cancel") || lower.contains("remove")
+                || lower.contains("forget") || lower.contains("no more") || lower.contains("delete"))
+        let reschedules = lower.contains("push") || lower.contains("reschedul")
         let isEdit = !renameTo.isEmpty || (interestGuess != .unknown && changeVerb)
+            || clearsReminder || reschedules
 
         let intent: MessageIntent
         if asksRecap && aboutGroup {
@@ -76,7 +82,7 @@ enum FallbackParser {
     /// or a possessive ("Maria's address").
     private static func detectName(in text: String) -> String {
         let triggers = ["saw", "met", "visited", "with", "for", "called on", "talked to", "talked with",
-                        "rename", "mark", "update", "change"]
+                        "rename", "mark", "update", "change", "push", "reschedule"]
         let words = text.split(whereSeparator: { $0 == " " || $0 == "," }).map(String.init)
 
         // 1. Name right after a visit verb (most reliable for logged visits).
