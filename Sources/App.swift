@@ -12,7 +12,7 @@ struct ReturnVisitNotebookApp: App {
         do {
             container = try ModelContainer(
                 for: Person.self, JournalEntry.self, ChatMessage.self,
-                     NotAtHome.self, Territory.self, DoNotCall.self,
+                     NotAtHome.self, Territory.self, DoNotCall.self, ServicePlan.self,
                 configurations: ModelConfiguration(isStoredInMemoryOnly: uiTesting)
             )
         } catch {

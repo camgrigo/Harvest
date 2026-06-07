@@ -59,6 +59,7 @@ struct PeoplePanelContent: View {
     @State private var showingScan = false
     @State private var showNotebook = false
     @State private var showSettings = false
+    @State private var showPlans = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -163,6 +164,10 @@ struct PeoplePanelContent: View {
                     Button { showSettings = true } label: { Image(systemName: "gearshape") }
                         .accessibilityLabel("Settings")
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showPlans = true } label: { Image(systemName: "calendar") }
+                        .accessibilityLabel("Service plans")
+                }
             }
             .navigationDestination(item: $selected) { target in
                 switch target {
@@ -184,6 +189,7 @@ struct PeoplePanelContent: View {
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showPlans) { ServicePlansView() }
             .confirmationDialog(
                 "Delete \(personToDelete?.name ?? "")?",
                 isPresented: Binding(get: { personToDelete != nil },

@@ -78,6 +78,7 @@ enum BackupService {
         var doors: [DoorDTO]
         var doNotCalls: [DoNotCallDTO]
         var chats: [ChatDTO]
+        var servicePlans: [ServicePlanDTO]?   // optional → older backups still decode
     }
 
     private struct PersonDTO: Codable {
@@ -106,6 +107,10 @@ enum BackupService {
     private struct ChatDTO: Codable {
         var date: Date, text: String, isFromUser: Bool, isCleared: Bool, personID: UUID?
     }
+    private struct ServicePlanDTO: Codable {
+        var id: UUID, date: Date, durationMinutes: Int
+        var place: String, partner: String, note: String, createdAt: Date
+    }
 
     // MARK: Capture
 
@@ -117,6 +122,7 @@ enum BackupService {
         let doors = try context.fetch(FetchDescriptor<NotAtHome>())
         let doNotCalls = try context.fetch(FetchDescriptor<DoNotCall>())
         let chats = try context.fetch(FetchDescriptor<ChatMessage>())
+        let servicePlans = try context.fetch(FetchDescriptor<ServicePlan>())
 
         return Snapshot(
             people: people.map {
@@ -148,6 +154,10 @@ enum BackupService {
             chats: chats.map {
                 ChatDTO(date: $0.date, text: $0.text, isFromUser: $0.isFromUser,
                         isCleared: $0.isCleared, personID: $0.person?.id)
+            },
+            servicePlans: servicePlans.map {
+                ServicePlanDTO(id: $0.id, date: $0.date, durationMinutes: $0.durationMinutes,
+                               place: $0.place, partner: $0.partner, note: $0.note, createdAt: $0.createdAt)
             }
         )
     }
@@ -162,6 +172,7 @@ enum BackupService {
         for d in try context.fetch(FetchDescriptor<NotAtHome>()) { context.delete(d) }
         for d in try context.fetch(FetchDescriptor<DoNotCall>()) { context.delete(d) }
         for c in try context.fetch(FetchDescriptor<ChatMessage>()) { context.delete(c) }
+        for p in try context.fetch(FetchDescriptor<ServicePlan>()) { context.delete(p) }
         context.saveIfPossible()
     }
 
@@ -225,6 +236,14 @@ enum BackupService {
             let c = ChatMessage(date: dto.date, text: dto.text, isFromUser: dto.isFromUser,
                                 isCleared: dto.isCleared, person: dto.personID.flatMap { peopleByID[$0] })
             context.insert(c)
+        }
+
+        for dto in s.servicePlans ?? [] {
+            let p = ServicePlan(date: dto.date, durationMinutes: dto.durationMinutes,
+                                place: dto.place, partner: dto.partner, note: dto.note,
+                                createdAt: dto.createdAt)
+            p.id = dto.id
+            context.insert(p)
         }
 
         context.saveIfPossible()
