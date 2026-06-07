@@ -238,6 +238,7 @@ private struct PeoplePanelContent: View {
     @State private var territoryToDelete: Territory?
     @State private var showingScan = false
     @State private var showNotebook = false
+    @State private var showSettings = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -337,6 +338,12 @@ private struct PeoplePanelContent: View {
             // Tap-to-chat with the notebook, pinned to the bottom of the panel.
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("Settings")
+                }
+            }
             .navigationDestination(item: $selected) { target in
                 switch target {
                 case .person(let person):
@@ -356,6 +363,7 @@ private struct PeoplePanelContent: View {
                     selected = .territory(territory)
                 }
             }
+            .sheet(isPresented: $showSettings) { SettingsView() }
             .confirmationDialog(
                 "Delete \(personToDelete?.name ?? "")?",
                 isPresented: Binding(get: { personToDelete != nil },

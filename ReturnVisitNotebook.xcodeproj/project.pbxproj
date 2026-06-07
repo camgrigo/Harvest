@@ -14,6 +14,7 @@
 		1976F1648BCCD0D5A95D0892 /* NotebookEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29F7ECD374AF62875AB0429E /* NotebookEngineTests.swift */; };
 		1E296517785A85CA57CB3DE7 /* DoNotCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 317381BC98BB99801AB8642A /* DoNotCall.swift */; };
 		235600F742740C54C6082024 /* ReturnHint.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03E83CBF11F80ECC81CF361 /* ReturnHint.swift */; };
+		27A34856BDF301062A8FEBD6 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE243C239DBC696B0B0F3E40 /* SettingsView.swift */; };
 		2D7CC06D6911545734658165 /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACD3C982FB51C9D4A71F1843 /* App.swift */; };
 		3295CE6EA9A0F1CC1094C21B /* Assistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = FECA817B912EA282F8D27F5D /* Assistant.swift */; };
 		3FCB24C706D25D0BE5DE25D8 /* Geocoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D4D6ADC0CB7A00661972470 /* Geocoder.swift */; };
@@ -51,6 +52,7 @@
 		E540328A3862B35547F2CCD0 /* ChatThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD029DC507FA428EA618909B /* ChatThread.swift */; };
 		E6BA42F0ADF2342751514DCD /* AddTerritoryInline.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF268F9303EC9D5185E67B88 /* AddTerritoryInline.swift */; };
 		E72092DEB19E4F9F96E52186 /* ChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 243173D872A6DD05EAA782E6 /* ChatView.swift */; };
+		F1A8476D605FC2CFC3B84626 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AE74501DC029B06F7555876 /* BackupService.swift */; };
 		F6EECEED8B455F2DEF532C75 /* TerritoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B90BA657A03EE82208A5029 /* TerritoryDetailView.swift */; };
 		FF8CBD8ABC451644D03F62C6 /* InlineLinkRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F25FCA46499BACDD59773BA /* InlineLinkRows.swift */; };
 		FF9D8CA578D359AC11AF1791 /* ReturnHintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAD668318F658C6997638336 /* ReturnHintTests.swift */; };
@@ -86,6 +88,7 @@
 		2F25FCA46499BACDD59773BA /* InlineLinkRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlineLinkRows.swift; sourceTree = "<group>"; };
 		317381BC98BB99801AB8642A /* DoNotCall.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoNotCall.swift; sourceTree = "<group>"; };
 		39369B88B8EF2A7EC8330457 /* NotebookEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookEngine.swift; sourceTree = "<group>"; };
+		3AE74501DC029B06F7555876 /* BackupService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackupService.swift; sourceTree = "<group>"; };
 		3B78C51D293CF9B526D66D24 /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriber.swift; sourceTree = "<group>"; };
 		41415FFD0C100AF871E52660 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		45551D3C97120E84CA6BC473 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
@@ -120,6 +123,7 @@
 		DD029DC507FA428EA618909B /* ChatThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThread.swift; sourceTree = "<group>"; };
 		E676FD3B6C236E0930C2B6FD /* Person.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Person.swift; sourceTree = "<group>"; };
 		E9D782A7E9A783D8F7B4B080 /* DateHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateHelpers.swift; sourceTree = "<group>"; };
+		EE243C239DBC696B0B0F3E40 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F023BACA4A9B2288BEAF34E6 /* RVUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RVUITests.swift; sourceTree = "<group>"; };
 		F16FA5A91C081DB553B3DA3E /* RecentlyDeletedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentlyDeletedView.swift; sourceTree = "<group>"; };
 		F5D6271CEA451300253DD6DB /* FallbackParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FallbackParser.swift; sourceTree = "<group>"; };
@@ -182,6 +186,7 @@
 				F16FA5A91C081DB553B3DA3E /* RecentlyDeletedView.swift */,
 				B64834C8B12F1822A333ED5E /* RootView.swift */,
 				7D94DAF9E079E03BD39AEDA4 /* ScanTerritoryView.swift */,
+				EE243C239DBC696B0B0F3E40 /* SettingsView.swift */,
 				5B90BA657A03EE82208A5029 /* TerritoryDetailView.swift */,
 			);
 			path = Views;
@@ -235,6 +240,7 @@
 		B507DEA4C593CF1641319F7E /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				3AE74501DC029B06F7555876 /* BackupService.swift */,
 				01FAC3B3FF37302E695FD771 /* CurrentLocationProvider.swift */,
 				E9D782A7E9A783D8F7B4B080 /* DateHelpers.swift */,
 				2D4D6ADC0CB7A00661972470 /* Geocoder.swift */,
@@ -377,6 +383,7 @@
 				E6BA42F0ADF2342751514DCD /* AddTerritoryInline.swift in Sources */,
 				2D7CC06D6911545734658165 /* App.swift in Sources */,
 				3295CE6EA9A0F1CC1094C21B /* Assistant.swift in Sources */,
+				F1A8476D605FC2CFC3B84626 /* BackupService.swift in Sources */,
 				9952353E12FE91FEB6840515 /* ChatAction.swift in Sources */,
 				5B11163547B86BB78B025B28 /* ChatMessage.swift in Sources */,
 				E540328A3862B35547F2CCD0 /* ChatThread.swift in Sources */,
@@ -409,6 +416,7 @@
 				235600F742740C54C6082024 /* ReturnHint.swift in Sources */,
 				6841B4205EB6C9801FDD138E /* RootView.swift in Sources */,
 				4EC3A076D16FDF39101976B5 /* ScanTerritoryView.swift in Sources */,
+				27A34856BDF301062A8FEBD6 /* SettingsView.swift in Sources */,
 				4BDBCC4F57685B2581874B91 /* SpeechTranscriber.swift in Sources */,
 				D9D6C905BDEBCA510C82B58E /* Territory.swift in Sources */,
 				F6EECEED8B455F2DEF532C75 /* TerritoryDetailView.swift in Sources */,
