@@ -96,6 +96,9 @@ private struct PlanEditor: View {
     @State private var note: String
     @State private var addToCalendar: Bool
     @State private var calendarError: String?
+    @State private var calendars: [CalendarExport.CalendarOption] = []
+    @State private var selectedCalendarID: String?
+    @AppStorage("defaultCalendarID") private var defaultCalendarID = ""
 
     init(plan: ServicePlan?) {
         self.plan = plan
@@ -120,10 +123,22 @@ private struct PlanEditor: View {
                     TextField("e.g. bring magazines, work Oak St territory", text: $note, axis: .vertical)
                         .lineLimit(2...5)
                 }
-                Toggle("Add to Apple Calendar", isOn: $addToCalendar)
+                Section {
+                    Toggle("Add to Apple Calendar", isOn: $addToCalendar)
+                    if addToCalendar, !calendars.isEmpty {
+                        Picker("Calendar", selection: $selectedCalendarID) {
+                            ForEach(calendars) { option in
+                                Text(option.title).tag(Optional(option.id))
+                            }
+                        }
+                    }
+                }
             }
             .navigationTitle(plan == nil ? "New Plan" : "Edit Plan")
             .navigationBarTitleDisplayMode(.inline)
+            .onChange(of: addToCalendar) { _, on in
+                if on { Task { await loadCalendars() } }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
@@ -153,9 +168,10 @@ private struct PlanEditor: View {
         context.saveIfPossible()
 
         if addToCalendar {
+            if let id = selectedCalendarID { defaultCalendarID = id }
             Task {
                 do {
-                    try await CalendarExport.add(target)
+                    try await CalendarExport.add(target, calendarID: selectedCalendarID)
                     dismiss()
                 } catch {
                     calendarError = error.localizedDescription
@@ -163,6 +179,19 @@ private struct PlanEditor: View {
             }
         } else {
             dismiss()
+        }
+    }
+
+    private func loadCalendars() async {
+        do {
+            let options = try await CalendarExport.calendars()
+            calendars = options
+            if selectedCalendarID == nil {
+                selectedCalendarID = options.first { $0.id == defaultCalendarID }?.id ?? options.first?.id
+            }
+        } catch {
+            calendarError = error.localizedDescription
+            addToCalendar = false
         }
     }
 
