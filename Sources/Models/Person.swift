@@ -49,8 +49,19 @@ final class Person {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
+    /// Active notes (not soft-deleted), oldest → newest.
     var sortedEntries: [JournalEntry] {
-        entries.sorted { $0.date < $1.date }
+        entries.filter { $0.deletedAt == nil }.sorted { $0.date < $1.date }
+    }
+
+    /// Soft-deleted notes still inside the 30-day recovery window, most-recently-deleted first.
+    var recentlyDeletedEntries: [JournalEntry] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .distantPast
+        return entries
+            .compactMap { entry in entry.deletedAt.map { (entry, $0) } }
+            .filter { $0.1 > cutoff }
+            .sorted { $0.1 > $1.1 }
+            .map(\.0)
     }
 
     /// True when a reminder is due today or overdue.

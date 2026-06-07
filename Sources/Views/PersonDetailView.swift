@@ -34,7 +34,7 @@ struct PersonDetailView: View {
             if let summary {
                 Section { Text(summary).foregroundStyle(.secondary).textSelection(.enabled) }
             }
-            if !person.entries.isEmpty {
+            if !person.sortedEntries.isEmpty || !person.recentlyDeletedEntries.isEmpty {
                 notesSection
             }
         }
@@ -184,7 +184,7 @@ struct PersonDetailView: View {
                     Label("Summarize notes", systemImage: "text.append")
                 }
             }
-            .disabled(isSummarizing || person.entries.isEmpty)
+            .disabled(isSummarizing || person.sortedEntries.isEmpty)
 
             // ── Reminder ──────────────────────────────────────────────────────
             Button {
@@ -250,7 +250,7 @@ struct PersonDetailView: View {
 
     private var notesSection: some View {
         Section("Notes") {
-            if person.entries.isEmpty {
+            if person.sortedEntries.isEmpty {
                 Text("No notes yet.")
                     .foregroundStyle(.secondary)
             } else {
@@ -262,9 +262,27 @@ struct PersonDetailView: View {
                         Text(entry.text)
                     }
                     .padding(.vertical, 2)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) { softDelete(entry) } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+            if !person.recentlyDeletedEntries.isEmpty {
+                NavigationLink {
+                    RecentlyDeletedView(person: person)
+                } label: {
+                    Label("Recently Deleted (\(person.recentlyDeletedEntries.count))", systemImage: "trash")
+                        .foregroundStyle(.secondary)
                 }
             }
         }
+    }
+
+    private func softDelete(_ entry: JournalEntry) {
+        entry.deletedAt = .now
+        context.saveIfPossible()
     }
 
     // MARK: Actions

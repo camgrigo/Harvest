@@ -11,6 +11,9 @@ final class JournalEntry {
     var scripture: String
     var publication: String
     var person: Person?
+    /// Soft-delete timestamp. nil = active; once set, the note lives in "Recently Deleted" until
+    /// it's purged 30 days later. Defaulted so existing rows lightweight-migrate.
+    var deletedAt: Date? = nil
 
     init(date: Date = .now,
          text: String,

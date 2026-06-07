@@ -70,6 +70,8 @@ struct ExploreView: View {
     @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
+    @State private var hero = HeroState()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -97,9 +99,14 @@ struct ExploreView: View {
             }
             .onChange(of: selected) { _, target in
                 focusMap(on: target)
+                // Map-pin tap (no card source) → present the hero with a centered fallback.
+                if target != nil, hero.sourceID == nil, !reduceMotion {
+                    hero.progress = 0
+                    hero.presenting = true
+                }
             }
             .sheet(isPresented: .constant(true)) {
-                PeoplePanelContent(people: people, territories: territories, selected: $selected)
+                PeoplePanelContent(people: people, territories: territories, selected: $selected, hero: hero)
                     .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
                     .presentationContentInteraction(.scrolls)
@@ -226,6 +233,7 @@ private struct PeoplePanelContent: View {
     let people: [Person]
     let territories: [Territory]
     @Binding var selected: MapTarget?
+    let hero: HeroState
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
@@ -238,7 +246,7 @@ private struct PeoplePanelContent: View {
     @State private var territoryToDelete: Territory?
     @State private var showingScan = false
     @State private var showNotebook = false
-    @Namespace private var zoomNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -342,10 +350,10 @@ private struct PeoplePanelContent: View {
                 switch target {
                 case .person(let person):
                     PersonDetailView(person: person)
-                        .navigationTransition(.zoom(sourceID: person.id, in: zoomNamespace))
+                        .onAppear { growHero() }
                 case .territory(let territory):
                     TerritoryDetailView(territory: territory)
-                        .navigationTransition(.zoom(sourceID: territory.id, in: zoomNamespace))
+                        .onAppear { growHero() }
                 }
             }
             .navigationDestination(isPresented: $showNotebook) {
@@ -391,7 +399,54 @@ private struct PeoplePanelContent: View {
             .task {
                 if userLocation == nil { await refreshLocation() }
             }
+            // Hand-rolled "magic move": a glass panel grows from the tapped card to full screen,
+            // revealing the pushed detail underneath. Hosted inside the NavigationStack so it paints
+            // above both the feed and the detail (the panel is its own .sheet presentation layer).
+            .overlayPreferenceValue(CardAnchorKey.self) { anchors in
+                GeometryReader { proxy in
+                    if hero.presenting {
+                        let card = hero.sourceID.flatMap { anchors[$0] }.map { proxy[$0] }
+                            ?? Self.centeredFallback(in: proxy.size)
+                        Rectangle()
+                            .fill(.regularMaterial)
+                            .modifier(HeroFrame(progress: hero.progress, card: card, container: proxy.size))
+                            .allowsHitTesting(false)
+                    }
+                }
+                .ignoresSafeArea()
+                .onChange(of: hero.progress) { _, p in
+                    if p >= 0.999 { hero.reset() }   // forward grow landed → drop the overlay
+                }
+            }
         }
+    }
+
+    // MARK: Hero transition
+
+    /// Card tap: stamp the source, mount the overlay over the card, then push the real page with
+    /// the native slide suppressed so only the overlay animates. Reduce Motion → plain push.
+    private func openHero(sourceID: UUID, target: MapTarget) {
+        guard !reduceMotion else { selected = target; return }
+        hero.sourceID = sourceID
+        hero.progress = 0
+        hero.presenting = true
+        var txn = Transaction()
+        txn.disablesAnimations = true
+        withTransaction(txn) { selected = target }
+    }
+
+    /// Grow the overlay once the real page is mounted underneath (from the destination's onAppear).
+    private func growHero() {
+        guard hero.presenting else { return }
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            hero.progress = 1
+        }
+    }
+
+    /// No card frame (map-pin tap) → grow from a centered rect: a plain scale-up + fade.
+    private static func centeredFallback(in size: CGSize) -> CGRect {
+        let w = size.width * 0.6, h = size.height * 0.4
+        return CGRect(x: (size.width - w) / 2, y: (size.height - h) / 2, width: w, height: h)
     }
 
     // MARK: Add
@@ -488,12 +543,13 @@ private struct PeoplePanelContent: View {
         switch item {
         case .person(let person):
             Button {
-                selected = .person(person)
+                openHero(sourceID: person.id, target: .person(person))
             } label: {
                 PersonCard(person: person, distanceText: distanceText(for: person.coordinate))
             }
             .buttonStyle(.plain)
-            .matchedTransitionSource(id: person.id, in: zoomNamespace)
+            .cardAnchor(person.id)
+            .opacity(hero.presenting && hero.sourceID == person.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     personToDelete = person
@@ -503,12 +559,13 @@ private struct PeoplePanelContent: View {
             }
         case .territory(let territory):
             Button {
-                selected = .territory(territory)
+                openHero(sourceID: territory.id, target: .territory(territory))
             } label: {
                 TerritoryCard(territory: territory, distanceText: distanceText(for: territory.coordinate))
             }
             .buttonStyle(.plain)
-            .matchedTransitionSource(id: territory.id, in: zoomNamespace)
+            .cardAnchor(territory.id)
+            .opacity(hero.presenting && hero.sourceID == territory.id ? 0 : 1)
             .contextMenu {
                 Button(role: .destructive) {
                     territoryToDelete = territory

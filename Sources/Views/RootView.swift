@@ -32,6 +32,7 @@ struct RootView: View {
             }
             .task { migrateOrphanDoors() }
             .task { backfillAttemptTimes() }
+            .task { purgeDeletedNotes() }
             .sheet(item: $routedPerson) { person in
                 NavigationStack { PersonDetailView(person: person) }
             }
@@ -81,6 +82,19 @@ struct RootView: View {
             }
             door.attemptTimes = seed.sorted()
         }
+        context.saveIfPossible()
+    }
+
+    /// Permanently removes notes that have been soft-deleted for more than 30 days. Idempotent.
+    private func purgeDeletedNotes() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -30, to: .now) ?? .distantPast
+        guard let entries = try? context.fetch(FetchDescriptor<JournalEntry>()) else { return }
+        let expired = entries.filter { entry in
+            guard let deletedAt = entry.deletedAt else { return false }
+            return deletedAt < cutoff
+        }
+        guard !expired.isEmpty else { return }
+        for entry in expired { context.delete(entry) }
         context.saveIfPossible()
     }
 
