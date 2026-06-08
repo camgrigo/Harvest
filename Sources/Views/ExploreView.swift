@@ -35,6 +35,8 @@ struct ExploreView: View {
     @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
+    /// Live height of the bottom sheet, reported by the panel — the locate button rides on top of it.
+    @State private var sheetHeight: CGFloat = 168
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -51,6 +53,10 @@ struct ExploreView: View {
 
     var body: some View {
         map
+            // A custom "center on me" button that floats just above the sheet and rides with it,
+            // Apple Maps style — overlaid here (outside the map's content insets) so it tracks the
+            // true screen bottom.
+            .overlay(alignment: .bottomTrailing) { locateButton }
             .onAppear { locationManager.requestWhenInUseAuthorization() }
             .task {
                 // On first load, frame everyone within 30 miles of you (capped at that radius).
@@ -64,7 +70,8 @@ struct ExploreView: View {
                 focusMap(on: target)
             }
             .sheet(isPresented: .constant(true)) {
-                PeoplePanelContent(people: people, territories: territories, selected: $selected)
+                PeoplePanelContent(people: people, territories: territories,
+                                   selected: $selected, sheetHeight: $sheetHeight)
                     .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
                     .presentationContentInteraction(.scrolls)
@@ -159,15 +166,49 @@ struct ExploreView: View {
                         .tint(.green)
                 }
             }
-            // Native map controls — MapKit positions them within the safe area.
+            // Pitch + compass stay in their native top-trailing spot; the locate button is custom
+            // (see `locateButton`) so it can float above the sheet instead.
             .mapControls {
-                MapUserLocationButton()
                 MapPitchToggle()
                 MapCompass()
             }
             .gesture(dropPinGesture(proxy))
             // Keep the bottom clear of the resting sheet.
             .safeAreaPadding(.bottom, 168)
+        }
+    }
+
+    /// "Center on me" — floats just above the bottom sheet and rides up/down with it via the
+    /// sheet height the panel reports. Hidden when the sheet is full-screen (it covers the map).
+    private var locateButton: some View {
+        Button(action: recenter) {
+            Image(systemName: "location.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.tint)
+                .frame(width: 44, height: 44)
+        }
+        .glassEffect(in: Circle())
+        .padding(.trailing, 12)
+        .padding(.bottom, sheetHeight + 12)
+        .opacity(detent == .large ? 0 : 1)
+        .allowsHitTesting(detent != .large)
+        .animation(.easeInOut(duration: 0.2), value: sheetHeight)
+        .animation(.easeInOut(duration: 0.2), value: detent)
+        .accessibilityLabel("Center on my location")
+    }
+
+    /// Re-frame the map on the device's current location.
+    private func recenter() {
+        Task {
+            if let location = await locator.current() {
+                withAnimation(.easeInOut) {
+                    camera = .region(MKCoordinateRegion(
+                        center: location.coordinate,
+                        latitudinalMeters: 1200, longitudinalMeters: 1200))
+                }
+            } else {
+                withAnimation(.easeInOut) { camera = .userLocation(fallback: .automatic) }
+            }
         }
     }
 

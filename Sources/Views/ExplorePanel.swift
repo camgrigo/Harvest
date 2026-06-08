@@ -46,6 +46,8 @@ struct PeoplePanelContent: View {
     let people: [Person]
     let territories: [Territory]
     @Binding var selected: MapTarget?
+    /// The panel reports its live height here so the map's locate button can float just above it.
+    @Binding var sheetHeight: CGFloat
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
@@ -223,6 +225,8 @@ struct PeoplePanelContent: View {
                 if userLocation == nil { await refreshLocation() }
             }
         }
+        // Tell the map how tall the sheet is right now (tracks interactive drags too).
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { sheetHeight = $0 }
     }
 
     // MARK: Add
