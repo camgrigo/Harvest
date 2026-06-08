@@ -48,10 +48,10 @@ struct RowLookAround: View {
                     if let distanceText {
                         Text(distanceText)
                             .font(.caption2.weight(.bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 5))
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(.regularMaterial, in: Capsule())
                             .padding(8)
                     }
                 } else {
@@ -232,10 +232,10 @@ struct TerritoryCard: View {
             if let distanceText {
                 Text(distanceText)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(.black.opacity(0.5), in: RoundedRectangle(cornerRadius: 5))
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
                     .padding(5)
             }
         }
