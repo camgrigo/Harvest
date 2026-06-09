@@ -48,7 +48,7 @@ struct ServicePlansView: View {
                 }
             }
             .sheet(item: $editing) { plan in PlanEditor(plan: plan) }
-            .sheet(isPresented: $addingNew) { PlanEditor(plan: nil) }
+            .sheet(isPresented: $addingNew) { NewServicePlanView() }
         }
     }
 

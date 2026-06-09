@@ -11,11 +11,13 @@
 		01AC9DE51C754B8C7F16EA85 /* NotAtHome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8419A83FCAF05386690F3047 /* NotAtHome.swift */; };
 		036752F17EBE338D78EF9E84 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8996CDBC2790E597C029F3E /* ChatMessage.swift */; };
 		080E27A7DE78DC86496F2C14 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B8C2C735B98ADBDBC2D2E1 /* Persistence.swift */; };
+		0A9F655F219F10F7609D2978 /* NewServicePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2CBA070A57231829835288 /* NewServicePlanView.swift */; };
 		0D8B82C37CB5BEA455A996B8 /* ChatAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617EFCAB68E2A232E8B4C247 /* ChatAction.swift */; };
 		1A623D4682786175B8F4A21E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0DAC81EFD9A875027A5F3356 /* Assets.xcassets */; };
 		1B2D890A24D56A2FED22C1CC /* Assistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = E879B37F10F3C7D804426147 /* Assistant.swift */; };
 		21A20BA7CD4D339A4ECADD93 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A1F55B604DC2079AB08E40 /* BackupService.swift */; };
 		22CD245E8EEABA7F70672F8F /* ScanTerritoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9ADA8A7512D2EA85B83555 /* ScanTerritoryView.swift */; };
+		28119A3AA7E85991D6ED05AE /* ServicePlanParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 222AC5506CB6BE5AA92C9055 /* ServicePlanParser.swift */; };
 		2C91AC5087DAB54223B3E354 /* ChatThreadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4875C9549E7862DEEED52C61 /* ChatThreadTests.swift */; };
 		2F6ABA329024D0CF3C3C0A58 /* Person.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E29F7841510F387719F25D7 /* Person.swift */; };
 		382367D01C6A417CE2E5DD2B /* App.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20A91E99FD55D55D8EACDED /* App.swift */; };
@@ -94,12 +96,14 @@
 		12FD64C82EF89C75AF694B09 /* ReturnHint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReturnHint.swift; sourceTree = "<group>"; };
 		161002091502A91A3F7D9B8D /* SpeechTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechTranscriber.swift; sourceTree = "<group>"; };
 		21848E5C86F17E10F3F51628 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		222AC5506CB6BE5AA92C9055 /* ServicePlanParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicePlanParser.swift; sourceTree = "<group>"; };
 		24B8C2C735B98ADBDBC2D2E1 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
 		298A3BAFB7BE43C4F106FC32 /* InterestLevel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestLevel.swift; sourceTree = "<group>"; };
 		331823B82CF9674A79EEE6E1 /* PersonDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailView.swift; sourceTree = "<group>"; };
 		369A1EFA1E6163661AEFE8A2 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		382902BF382DDA01BCE1A150 /* ReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderScheduler.swift; sourceTree = "<group>"; };
 		39DB94D00AE4137DABF1809D /* HarvestUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HarvestUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		3B2CBA070A57231829835288 /* NewServicePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewServicePlanView.swift; sourceTree = "<group>"; };
 		417396D14A8118872CEC8C76 /* Geocoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geocoder.swift; sourceTree = "<group>"; };
 		47E908298DE00CED5CFFC74C /* HarvestTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HarvestTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		4875C9549E7862DEEED52C61 /* ChatThreadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThreadTests.swift; sourceTree = "<group>"; };
@@ -164,6 +168,7 @@
 				AB6DA447044EBDE37A2FDF30 /* LocationPickerView.swift */,
 				09E252F5F175ABB47E328C0F /* MarkdownMessage.swift */,
 				D035DF9A106EDDF0BAA8A88E /* NewPersonView.swift */,
+				3B2CBA070A57231829835288 /* NewServicePlanView.swift */,
 				0BC5909329695521F7EF5D14 /* OnboardingView.swift */,
 				331823B82CF9674A79EEE6E1 /* PersonDetailView.swift */,
 				7B598C802C616E5ADF069069 /* RecentlyDeletedView.swift */,
@@ -219,6 +224,7 @@
 				70A7C6B870C5FD83CED0DCFD /* ChatThread.swift */,
 				70C0E4D0949CF904B6AE33CF /* FallbackParser.swift */,
 				8795962121751E65623B8772 /* NotebookEngine.swift */,
+				222AC5506CB6BE5AA92C9055 /* ServicePlanParser.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -445,6 +451,7 @@
 				E485542F74BB1F67D2F8651F /* MarkdownMessage.swift in Sources */,
 				49D621AFC95114428C6CDB29 /* NearbyAddresses.swift in Sources */,
 				E8D16DCFE1C3D3522F37E9C6 /* NewPersonView.swift in Sources */,
+				0A9F655F219F10F7609D2978 /* NewServicePlanView.swift in Sources */,
 				01AC9DE51C754B8C7F16EA85 /* NotAtHome.swift in Sources */,
 				6D68402AC16CFEF521FA58F9 /* NotAtHomePromotion.swift in Sources */,
 				C2C1DDD3D6C1CE9DE2CAB82B /* NotebookEngine.swift in Sources */,
@@ -459,6 +466,7 @@
 				6028DDDF5A0FEC86E453F38D /* RootView.swift in Sources */,
 				22CD245E8EEABA7F70672F8F /* ScanTerritoryView.swift in Sources */,
 				C929121D1F073FD5B2703B5F /* ServicePlan.swift in Sources */,
+				28119A3AA7E85991D6ED05AE /* ServicePlanParser.swift in Sources */,
 				6C0D1DFB72F861A8C761D145 /* ServicePlansView.swift in Sources */,
 				F70D8E37A459B86ABC4E51B8 /* SettingsView.swift in Sources */,
 				7181F4682F8C182982543E30 /* SpeechTranscriber.swift in Sources */,
