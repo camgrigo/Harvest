@@ -67,8 +67,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Backup")
                 } footer: {
-                    Text("Your whole notebook is encrypted into one file. It stays on your device unless you share it — and can't be opened without the passphrase, so keep it somewhere safe.")
-                    + Text(useFaceID ? " Face ID protects this backup; you'll still keep a passphrase as a fallback." : "")
+                    Text("Your whole notebook is encrypted into one file. It stays on your device unless you share it — and can't be opened without the passphrase, so keep it somewhere safe.\(useFaceID ? " Face ID protects this backup; you'll still keep a passphrase as a fallback." : "")")
                 }
 
                 Section {

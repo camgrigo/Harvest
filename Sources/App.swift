@@ -48,6 +48,8 @@ struct HarvestApp: App {
         request.requiresNetworkConnectivity = false
         request.requiresExternalPower = false
         request.earliestBeginDate = Self.nextBackupDate(after: .now)
+        // NB: iOS 27 deprecates `submit(_:)` for `submitTaskRequest:completionHandler:`, but that
+        // selector isn't cleanly bridged to Swift on the current beta — keep the working call.
         do {
             try BGTaskScheduler.shared.submit(request)
         } catch {
