@@ -35,6 +35,8 @@ struct SettingsView: View {
     @State private var alertMessage: String?
     @State private var didRestore = false
 
+    @AppStorage("map.look") private var mapLook: MapLook = .standard
+
     private var defaultFilename: String {
         "Harvest-backup-\(DateFormatter.ymd.string(from: .now))"
     }
@@ -42,6 +44,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Map") {
+                    Picker("Map look", selection: $mapLook) {
+                        ForEach(MapLook.allCases) { look in
+                            Text(look.label).tag(look)
+                        }
+                    }
+                }
                 Section {
                     SecureField("Passphrase", text: $passphrase)
                         .textContentType(.password)

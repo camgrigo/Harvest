@@ -43,7 +43,6 @@ struct ServicePlansView: View {
             .navigationTitle("Service Plans")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
                     Button { addingNew = true } label: { Image(systemName: "plus") }
                 }

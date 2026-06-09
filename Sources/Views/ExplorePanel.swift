@@ -46,8 +46,6 @@ struct PeoplePanelContent: View {
     let people: [Person]
     let territories: [Territory]
     @Binding var selected: MapTarget?
-    /// The panel reports its live height here so the map's locate button can float just above it.
-    @Binding var sheetHeight: CGFloat
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
@@ -61,7 +59,6 @@ struct PeoplePanelContent: View {
     @State private var showingScan = false
     @State private var showNotebook = false
     @State private var showSettings = false
-    @State private var showPlans = false
     @State private var showNewPerson = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
@@ -167,10 +164,6 @@ struct PeoplePanelContent: View {
                     Button { showSettings = true } label: { Image(systemName: "gearshape.fill") }
                         .accessibilityLabel("Settings")
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showPlans = true } label: { Image(systemName: "calendar") }
-                        .accessibilityLabel("Service plans")
-                }
             }
             .navigationDestination(item: $selected) { target in
                 switch target {
@@ -192,7 +185,6 @@ struct PeoplePanelContent: View {
                 }
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
-            .sheet(isPresented: $showPlans) { ServicePlansView() }
             .sheet(isPresented: $showNewPerson) {
                 NewPersonView { person in selected = .person(person) }
             }
@@ -227,8 +219,6 @@ struct PeoplePanelContent: View {
                 if userLocation == nil { await refreshLocation() }
             }
         }
-        // Tell the map how tall the sheet is right now (tracks interactive drags too).
-        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { sheetHeight = $0 }
     }
 
     // MARK: Add
@@ -248,9 +238,7 @@ struct PeoplePanelContent: View {
                     showingScan = true
                 } label: { Label("Scan territory card", systemImage: "doc.text.viewfinder") }
             } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 30))
-                    .foregroundStyle(.white)
+                Image(systemName: "plus")
             }
             .accessibilityLabel("Add")
 

@@ -18,6 +18,19 @@ enum MapTarget: Hashable {
     case territory(Territory)
 }
 
+/// Map appearance, chosen in Settings.
+enum MapLook: String, CaseIterable, Identifiable {
+    case standard, hybrid, satellite
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .standard:  "Standard"
+        case .hybrid:    "Hybrid"
+        case .satellite: "Satellite"
+        }
+    }
+}
+
 /// Map and people combined into one screen (Find My style): a full-bleed territory map with a
 /// native bottom sheet of people that floats above it (background interaction stays enabled so
 /// the map is still pannable). Tapping a pin opens that person in the sheet; touch and hold the
@@ -35,8 +48,8 @@ struct ExploreView: View {
     @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
-    /// Live height of the bottom sheet, reported by the panel (kept so the map insets above it).
-    @State private var sheetHeight: CGFloat = 168
+    /// Chosen in Settings — Standard / Hybrid / Satellite imagery.
+    @AppStorage("map.look") private var mapLook: MapLook = .standard
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -67,11 +80,10 @@ struct ExploreView: View {
             }
             .sheet(isPresented: .constant(true)) {
                 PeoplePanelContent(people: people, territories: territories,
-                                   selected: $selected, sheetHeight: $sheetHeight)
+                                   selected: $selected)
                     .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
                     .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
                     .presentationContentInteraction(.scrolls)
-                    .presentationBackground(.regularMaterial)
                     .interactiveDismissDisabled()
                     .sheet(item: $dropped) { pin in
                         LocationActionView(coordinate: pin.coordinate)
@@ -162,15 +174,26 @@ struct ExploreView: View {
                         .tint(.green)
                 }
             }
-            // Standard SwiftUI map controls (location, 2D/3D pitch, compass) — legible, system-styled.
+            .mapStyle(mapStyle)
+            // Standard SwiftUI map controls (location, 2D/3D pitch, compass), tinted white.
             .mapControls {
                 MapUserLocationButton()
                 MapPitchToggle()
                 MapCompass()
             }
+            .tint(.white)
             .gesture(dropPinGesture(proxy))
             // Keep the bottom clear of the resting sheet.
             .safeAreaPadding(.bottom, 168)
+        }
+    }
+
+    /// The MapKit style for the chosen look (Standard / Hybrid / Satellite).
+    private var mapStyle: MapStyle {
+        switch mapLook {
+        case .standard:  .standard(elevation: .flat)
+        case .hybrid:    .hybrid(elevation: .flat)
+        case .satellite: .imagery(elevation: .flat)
         }
     }
 

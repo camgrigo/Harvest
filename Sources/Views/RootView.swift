@@ -1,10 +1,9 @@
 import SwiftUI
 import SwiftData
 
-/// The app's single root screen: the map + people/territories sheet (`ExploreView`). The old
-/// tab bar is gone — house-to-house now lives in the same feed as territories. This thin wrapper
-/// keeps the cross-cutting concerns: first-run onboarding, reminder-notification routing, and a
-/// one-time migration that files legacy not-at-homes under a default territory.
+/// The app's root: a tab bar with Explore (map + people/territories) and Schedule (service plans).
+/// This thin wrapper keeps the cross-cutting concerns: first-run onboarding, reminder-notification
+/// routing, and one-time migrations that tidy up legacy data.
 struct RootView: View {
     @EnvironmentObject private var notifications: NotificationCoordinator
     @Environment(\.modelContext) private var context
@@ -15,7 +14,14 @@ struct RootView: View {
     private var isUITesting: Bool { ProcessInfo.processInfo.arguments.contains("-uitesting") }
 
     var body: some View {
-        ExploreView()
+        TabView {
+            Tab("Explore", systemImage: "map.fill") {
+                ExploreView()
+            }
+            Tab("Schedule", systemImage: "calendar") {
+                ServicePlansView()
+            }
+        }
             .fullScreenCover(isPresented: Binding(
                 get: { !hasOnboarded },
                 set: { if !$0 { hasOnboarded = true } }
