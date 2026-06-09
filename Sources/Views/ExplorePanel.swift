@@ -43,9 +43,10 @@ private enum SortMode: String, CaseIterable, Identifiable {
 /// (house-to-house areas). Tapping a row — or a map pin — sets `selected`, which both focuses
 /// the map and pushes the matching detail screen within this stack.
 struct PeoplePanelContent: View {
-    let people: [Person]
-    let territories: [Territory]
-    @Binding var selected: MapTarget?
+    @Query(filter: #Predicate<Person> { !$0.isArchived },
+           sort: \Person.createdAt, order: .reverse) private var people: [Person]
+    @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
+    @State private var selected: MapTarget?
 
     @Environment(\.modelContext) private var context
     @StateObject private var locator = CurrentLocationProvider()
@@ -58,7 +59,6 @@ struct PeoplePanelContent: View {
     @State private var territoryToDelete: Territory?
     @State private var showingScan = false
     @State private var showNotebook = false
-    @State private var showSettings = false
     @State private var showNewPerson = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
@@ -158,13 +158,8 @@ struct PeoplePanelContent: View {
             .safeAreaInset(edge: .top, spacing: 0) { controlBar }
             // Tap-to-chat with the notebook, pinned to the bottom of the panel.
             .safeAreaInset(edge: .bottom) { notebookComposer }
+            .navigationTitle("People")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape.fill") }
-                        .accessibilityLabel("Settings")
-                }
-            }
             .navigationDestination(item: $selected) { target in
                 switch target {
                 case .person(let person):
@@ -184,7 +179,6 @@ struct PeoplePanelContent: View {
                     selected = .territory(territory)
                 }
             }
-            .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showNewPerson) {
                 NewPersonView { person in selected = .person(person) }
             }

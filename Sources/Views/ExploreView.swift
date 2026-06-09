@@ -11,8 +11,7 @@ struct DroppedPin: Identifiable {
 }
 
 /// A selectable thing on the map and in the feed: a person (return visit) or a territory
-/// (house-to-house area). Shared by the map's selection and the list so a tap in either place
-/// focuses the map and pushes the matching detail screen.
+/// (house-to-house area).
 enum MapTarget: Hashable {
     case person(Person)
     case territory(Territory)
@@ -31,12 +30,10 @@ enum MapLook: String, CaseIterable, Identifiable {
     }
 }
 
-/// Map and people combined into one screen (Find My style): a full-bleed territory map with a
-/// native bottom sheet of people that floats above it (background interaction stays enabled so
-/// the map is still pannable). Tapping a pin opens that person in the sheet; touch and hold the
-/// map to drop a new pin.
+/// The Map tab: a full-bleed map of your located people and territories, with a horizontally
+/// scrolling "Nearby" strip across the bottom showing whatever is currently in the map's viewport.
+/// Tapping a pin or a Nearby card opens that page; touch and hold the map to drop a new pin.
 struct ExploreView: View {
-    @Environment(\.modelContext) private var context
     @Query(filter: #Predicate<Person> { !$0.isArchived },
            sort: \Person.createdAt, order: .reverse) private var people: [Person]
     @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
@@ -45,108 +42,42 @@ struct ExploreView: View {
     @State private var selected: MapTarget?
     @State private var dropped: DroppedPin?
     @State private var locationManager = CLLocationManager()
-    @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
-    /// Chosen in Settings — Standard / Hybrid / Satellite imagery.
+    /// The map's current visible region, tracked so the Nearby strip reflects what's on screen.
+    @State private var visibleRegion: MKCoordinateRegion?
     @AppStorage("map.look") private var mapLook: MapLook = .standard
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
 
-    /// Resting "peek" height that keeps the search field, a row, and the chat bar visible.
-    private static let peek: PresentationDetent = .height(168)
-
-    /// Default detent when a person is selected — tall enough to show all their info without
-    /// going full-screen, so the map pin stays visible above the sheet.
-    private static let selectedDetent: PresentationDetent = .fraction(0.7)
-
     private var located: [Person] { people.filter { $0.coordinate != nil } }
     private var locatedTerritories: [Territory] { territories.filter { $0.coordinate != nil } }
 
     var body: some View {
-        map
-            .onAppear { locationManager.requestWhenInUseAuthorization() }
-            .task {
-                // On first load, frame everyone within 30 miles of you (capped at that radius).
-                guard !didSetDefaultCamera else { return }
-                didSetDefaultCamera = true
-                if let region = await defaultRegion() {
-                    withAnimation(.easeInOut) { camera = .region(region) }
-                }
-            }
-            .onChange(of: selected) { _, target in
-                focusMap(on: target)
-            }
-            .sheet(isPresented: .constant(true)) {
-                PeoplePanelContent(people: people, territories: territories,
-                                   selected: $selected)
-                    .presentationDetents([Self.peek, .medium, Self.selectedDetent, .large], selection: $detent)
-                    .presentationBackgroundInteraction(.enabled(upThrough: Self.selectedDetent))
-                    .presentationContentInteraction(.scrolls)
-                    .interactiveDismissDisabled()
-                    .sheet(item: $dropped) { pin in
-                        LocationActionView(coordinate: pin.coordinate)
+        NavigationStack {
+            map
+                .overlay(alignment: .bottom) { nearbyStrip }
+                .navigationDestination(item: $selected) { target in
+                    switch target {
+                    case .person(let person):       PersonDetailView(person: person)
+                    case .territory(let territory): TerritoryDetailView(territory: territory)
                     }
-            }
-    }
-
-    /// Move the camera + rest the sheet to suit the newly selected item: a person frames their
-    /// pin at 70 %; a territory frames its area wider and opens the sheet tall (it's a work list).
-    private func focusMap(on target: MapTarget?) {
-        switch target {
-        case .person(let person):
-            if let coordinate = person.coordinate {
-                withAnimation(.easeInOut) {
-                    camera = .region(MKCoordinateRegion(
-                        center: coordinate, latitudinalMeters: 400, longitudinalMeters: 400))
                 }
-                detent = Self.selectedDetent
-            } else {
-                detent = .large
-            }
-        case .territory(let territory):
-            if let coordinate = territory.coordinate {
-                withAnimation(.easeInOut) {
-                    camera = .region(MKCoordinateRegion(
-                        center: coordinate, latitudinalMeters: 1200, longitudinalMeters: 1200))
+                .toolbar(.hidden, for: .navigationBar)
+                .onAppear { locationManager.requestWhenInUseAuthorization() }
+                .task {
+                    // On first load, frame everyone within 30 miles of you (capped at that radius).
+                    guard !didSetDefaultCamera else { return }
+                    didSetDefaultCamera = true
+                    if let region = await defaultRegion() {
+                        withAnimation(.easeInOut) { camera = .region(region) }
+                    }
                 }
-            }
-            detent = .large
-        case .none:
-            break
+                .sheet(item: $dropped) { pin in
+                    LocationActionView(coordinate: pin.coordinate)
+                }
         }
-    }
-
-    /// The opening region: centered on you, sized to include the farthest person within
-    /// 30 miles (with a little padding), but never zoomed out beyond a 30-mile radius.
-    /// Falls back to the located people's spread when your location isn't available.
-    private func defaultRegion() async -> MKCoordinateRegion? {
-        let pins = located.compactMap(\.coordinate)
-            .map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
-
-        let center: CLLocationCoordinate2D
-        let radius: CLLocationDistance
-
-        if let user = await locator.current() {
-            center = user.coordinate
-            let nearby = pins.map { $0.distance(from: user) }.filter { $0 <= Self.maxDefaultRadius }
-            radius = (nearby.max() ?? 0)
-        } else if !pins.isEmpty {
-            // No location permission — frame the people instead, around their midpoint.
-            let lat = pins.map(\.coordinate.latitude).reduce(0, +) / Double(pins.count)
-            let lon = pins.map(\.coordinate.longitude).reduce(0, +) / Double(pins.count)
-            center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
-            let mid = CLLocation(latitude: lat, longitude: lon)
-            radius = pins.map { $0.distance(from: mid) }.max() ?? Self.maxDefaultRadius
-        } else {
-            return nil   // nothing to show — keep the default user-location camera
-        }
-
-        // Clamp to the 30-mile cap, keep a sane floor, and pad so pins aren't at the edge.
-        let clamped = min(max(radius, 1609.34), Self.maxDefaultRadius)
-        let span = clamped * 2 * 1.2
-        return MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span)
     }
 
     // MARK: Map
@@ -182,9 +113,11 @@ struct ExploreView: View {
                 MapCompass()
             }
             .tint(.white)
+            .onMapCameraChange(frequency: .onEnd) { context in
+                visibleRegion = context.region
+            }
             .gesture(dropPinGesture(proxy))
-            // Keep the bottom clear of the resting sheet.
-            .safeAreaPadding(.bottom, 168)
+            .ignoresSafeArea(edges: .bottom)
         }
     }
 
@@ -197,6 +130,76 @@ struct ExploreView: View {
         }
     }
 
+    // MARK: Nearby strip
+
+    /// People + territories whose pin sits inside the current viewport, nearest the center first.
+    private var nearbyTargets: [MapTarget] {
+        guard let region = visibleRegion else { return [] }
+        let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
+        func distance(_ c: CLLocationCoordinate2D) -> CLLocationDistance {
+            CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: center)
+        }
+        let nearbyPeople = located
+            .filter { region.contains($0.coordinate!) }
+            .map { (MapTarget.person($0), distance($0.coordinate!)) }
+        let nearbyTerritories = locatedTerritories
+            .filter { region.contains($0.coordinate!) }
+            .map { (MapTarget.territory($0), distance($0.coordinate!)) }
+        return (nearbyPeople + nearbyTerritories).sorted { $0.1 < $1.1 }.map(\.0)
+    }
+
+    @ViewBuilder
+    private var nearbyStrip: some View {
+        let targets = nearbyTargets
+        if !targets.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(targets, id: \.self) { target in
+                        Button { selected = target } label: { NearbyCard(target: target) }
+                            .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+            }
+            .background(.bar)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+            .animation(.easeInOut(duration: 0.2), value: targets.count)
+        }
+    }
+
+    // MARK: Default region
+
+    /// The opening region: centered on you, sized to include the farthest person within 30 miles
+    /// (padded), but never zoomed out beyond a 30-mile radius. Falls back to the people's spread.
+    private func defaultRegion() async -> MKCoordinateRegion? {
+        let pins = located.compactMap(\.coordinate)
+            .map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
+
+        let center: CLLocationCoordinate2D
+        let radius: CLLocationDistance
+
+        if let user = await locator.current() {
+            center = user.coordinate
+            let nearby = pins.map { $0.distance(from: user) }.filter { $0 <= Self.maxDefaultRadius }
+            radius = (nearby.max() ?? 0)
+        } else if !pins.isEmpty {
+            let lat = pins.map(\.coordinate.latitude).reduce(0, +) / Double(pins.count)
+            let lon = pins.map(\.coordinate.longitude).reduce(0, +) / Double(pins.count)
+            center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+            let mid = CLLocation(latitude: lat, longitude: lon)
+            radius = pins.map { $0.distance(from: mid) }.max() ?? Self.maxDefaultRadius
+        } else {
+            return nil   // nothing to show — keep the default user-location camera
+        }
+
+        let clamped = min(max(radius, 1609.34), Self.maxDefaultRadius)
+        let span = clamped * 2 * 1.2
+        return MKCoordinateRegion(center: center, latitudinalMeters: span, longitudinalMeters: span)
+    }
+
+    // MARK: Drop pin
+
     /// Touch-and-hold, then read the press point and convert it to a map coordinate.
     private func dropPinGesture(_ proxy: MapProxy) -> some Gesture {
         LongPressGesture(minimumDuration: 0.4)
@@ -207,5 +210,82 @@ struct ExploreView: View {
                     dropped = DroppedPin(coordinate: coordinate)
                 }
             }
+    }
+}
+
+/// Simple viewport containment for the Nearby strip.
+extension MKCoordinateRegion {
+    func contains(_ c: CLLocationCoordinate2D) -> Bool {
+        let latMin = center.latitude - span.latitudeDelta / 2
+        let latMax = center.latitude + span.latitudeDelta / 2
+        let lonMin = center.longitude - span.longitudeDelta / 2
+        let lonMax = center.longitude + span.longitudeDelta / 2
+        return c.latitude >= latMin && c.latitude <= latMax
+            && c.longitude >= lonMin && c.longitude <= lonMax
+    }
+}
+
+/// A compact card in the Map tab's Nearby strip.
+private struct NearbyCard: View {
+    let target: MapTarget
+
+    var body: some View {
+        HStack(spacing: 9) {
+            iconView
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .fontDesign(.serif)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(10)
+        .frame(width: 200, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground),
+                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
+    }
+
+    private var title: String {
+        switch target {
+        case .person(let p):    p.name
+        case .territory(let t): t.name
+        }
+    }
+
+    private var subtitle: String {
+        switch target {
+        case .person(let p):
+            personDueText(p) ?? (p.headline.isEmpty ? p.interest.label : p.headline)
+        case .territory(let t):
+            territorySubtitle(t)
+        }
+    }
+
+    @ViewBuilder
+    private var iconView: some View {
+        switch target {
+        case .person(let p):
+            let color: Color = p.isDue ? .red : .blue
+            Image(systemName: p.interest.symbol)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(color)
+                .frame(width: 34, height: 34)
+                .background(color.opacity(0.14), in: Circle())
+        case .territory:
+            Image("Territory")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 19, height: 19)
+                .foregroundStyle(.orange)
+                .frame(width: 34, height: 34)
+                .background(Color.orange.opacity(0.15), in: Circle())
+        }
     }
 }

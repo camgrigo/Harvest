@@ -15,11 +15,17 @@ struct RootView: View {
 
     var body: some View {
         TabView {
-            Tab("Explore", systemImage: "map.fill") {
+            Tab("Map", systemImage: "map.fill") {
                 ExploreView()
+            }
+            Tab("People", systemImage: "list.bullet") {
+                PeoplePanelContent()
             }
             Tab("Schedule", systemImage: "calendar") {
                 ServicePlansView()
+            }
+            Tab("Settings", systemImage: "gearshape.fill") {
+                SettingsView()
             }
         }
             .fullScreenCover(isPresented: Binding(
