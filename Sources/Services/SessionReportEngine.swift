@@ -62,10 +62,13 @@ enum SessionReportEngine {
                                  now: Date = .now,
                                  calendar: Calendar = .current) -> Int {
         let cutoff = calendar.date(byAdding: .day, value: -30, to: now) ?? .distantPast
+        // SwiftData's #Predicate doesn't reliably translate optional force-unwrap comparisons, so
+        // fetch the soft-deleted rows and apply the date cutoff in Swift.
         let descriptor = FetchDescriptor<ServiceSession>(
-            predicate: #Predicate { $0.deletedAt != nil && $0.deletedAt! < cutoff }
+            predicate: #Predicate { $0.deletedAt != nil }
         )
-        let toDelete = (try? context.fetch(descriptor)) ?? []
+        let toDelete = ((try? context.fetch(descriptor)) ?? [])
+            .filter { ($0.deletedAt ?? .distantFuture) < cutoff }
         toDelete.forEach { context.delete($0) }
         if !toDelete.isEmpty { context.saveIfPossible() }
         return toDelete.count
