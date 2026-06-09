@@ -248,7 +248,7 @@ struct PeoplePanelContent: View {
             } label: {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 30))
-                    .foregroundStyle(.white, Color.accentColor)
+                    .foregroundStyle(.white)
             }
             .accessibilityLabel("Add")
 
