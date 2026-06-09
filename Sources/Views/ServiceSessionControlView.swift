@@ -43,7 +43,7 @@ struct ServiceSessionControlView: View {
                 .buttonStyle(.borderedProminent)
                 Spacer()
                 Button { showHistory = true } label: {
-                    Image(systemName: "chart.bar.doc.horizontal")
+                    Label("Reports", systemImage: "chart.bar.doc.horizontal")
                 }
                 .buttonStyle(.bordered)
                 .accessibilityLabel("Session history and monthly report")
