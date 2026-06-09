@@ -161,17 +161,19 @@ struct PersonGridCard: View {
             // Located visit: the Look Around photo fills the whole card; text layers on top over a
             // top-down scrim and carries a soft shadow so it stays legible on bright/busy photos.
             content(onImage: true)
-                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
+                .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 1)
                 .padding(14)
                 .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .topLeading)
                 .background {
                     ZStack {
                         RowLookAround(coordinate: coordinate, feather: false)
+                        // A strong, fairly even scrim — text can sit anywhere on the card, so keep
+                        // the whole photo dark enough for white text to stay legible on bright shots.
                         LinearGradient(
                             stops: [
-                                .init(color: .black.opacity(0.72), location: 0),
-                                .init(color: .black.opacity(0.34), location: 0.5),
-                                .init(color: .black.opacity(0.10), location: 0.9),
+                                .init(color: .black.opacity(0.82), location: 0),
+                                .init(color: .black.opacity(0.6), location: 0.5),
+                                .init(color: .black.opacity(0.52), location: 1.0),
                             ],
                             startPoint: .top, endPoint: .bottom
                         )
@@ -206,6 +208,7 @@ struct PersonGridCard: View {
             }
             Text(person.name)
                 .font(.title3.weight(.bold))
+                .fontDesign(.serif)
                 .foregroundStyle(onImage ? Color.white : Color.primary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)

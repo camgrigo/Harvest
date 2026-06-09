@@ -88,6 +88,7 @@ struct NewPersonView: View {
                 RoundedRectangle(cornerRadius: 2).fill(.tint).frame(width: 4, height: 30)
                 TextField("Name", text: nameBinding)
                     .font(.title3.weight(.semibold))
+                    .fontDesign(.serif)
                     .textInputAutocapitalization(.words)
             }
             .cardRow()
