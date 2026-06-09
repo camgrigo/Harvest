@@ -33,8 +33,9 @@ enum ServicePlanParser {
     // MARK: Date + time
 
     /// Detects the first date/time with `NSDataDetector`, removes it from `text`, and returns it.
-    /// When a day is given without a clock time (the detector lands on midnight), defaults to 9 AM —
-    /// a sensible field-service start — so the picker isn't stuck at 12:00 AM.
+    /// A day given without a clock time defaults to 9 AM — a sensible field-service start. We can't
+    /// rely on the resolved hour for that (the detector fills a timeless day with *noon*), so we look
+    /// at whether the matched text itself names a time.
     private static func extractDate(_ text: inout String) -> Date? {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else {
             return nil
@@ -44,10 +45,12 @@ enum ServicePlanParser {
               var date = match.date,
               let swiftRange = Range(match.range, in: text) else { return nil }
 
-        let cal = Calendar.current
-        let comps = cal.dateComponents([.hour, .minute], from: date)
-        if (comps.hour ?? 0) == 0 && (comps.minute ?? 0) == 0 {
-            date = cal.date(bySettingHour: 9, minute: 0, second: 0, of: date) ?? date
+        let matched = text[swiftRange].lowercased()
+        let namesTime = matched.range(of: #"\d"#, options: .regularExpression) != nil
+            || ["noon", "midnight", "morning", "afternoon", "evening", "night", "o'clock"]
+                .contains { matched.contains($0) }
+        if !namesTime {
+            date = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: date) ?? date
         }
         text.removeSubrange(swiftRange)
         return date

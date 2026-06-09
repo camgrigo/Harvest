@@ -11,6 +11,9 @@ settings:
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_STRICT_CONCURRENCY: complete
+    # Team applied to every target (incl. the test bundles) so they sign for on-device test runs.
+    DEVELOPMENT_TEAM: SYPHAMSPW3
+    CODE_SIGN_STYLE: Automatic
 targets:
   Harvest:
     type: application

@@ -13,6 +13,7 @@
 		080E27A7DE78DC86496F2C14 /* Persistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B8C2C735B98ADBDBC2D2E1 /* Persistence.swift */; };
 		0A9F655F219F10F7609D2978 /* NewServicePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2CBA070A57231829835288 /* NewServicePlanView.swift */; };
 		0D8B82C37CB5BEA455A996B8 /* ChatAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617EFCAB68E2A232E8B4C247 /* ChatAction.swift */; };
+		0F8DB6D5F0B0D615270FC66B /* ServicePlanParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26E8095AB4D8FA55220763B9 /* ServicePlanParserTests.swift */; };
 		1A623D4682786175B8F4A21E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0DAC81EFD9A875027A5F3356 /* Assets.xcassets */; };
 		1B2D890A24D56A2FED22C1CC /* Assistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = E879B37F10F3C7D804426147 /* Assistant.swift */; };
 		21A20BA7CD4D339A4ECADD93 /* BackupService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A1F55B604DC2079AB08E40 /* BackupService.swift */; };
@@ -98,6 +99,7 @@
 		21848E5C86F17E10F3F51628 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		222AC5506CB6BE5AA92C9055 /* ServicePlanParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicePlanParser.swift; sourceTree = "<group>"; };
 		24B8C2C735B98ADBDBC2D2E1 /* Persistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence.swift; sourceTree = "<group>"; };
+		26E8095AB4D8FA55220763B9 /* ServicePlanParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicePlanParserTests.swift; sourceTree = "<group>"; };
 		298A3BAFB7BE43C4F106FC32 /* InterestLevel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterestLevel.swift; sourceTree = "<group>"; };
 		331823B82CF9674A79EEE6E1 /* PersonDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonDetailView.swift; sourceTree = "<group>"; };
 		369A1EFA1E6163661AEFE8A2 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
@@ -292,6 +294,7 @@
 				74B31AD5C186233C534C227D /* NotebookEngineTests.swift */,
 				F7B6520802BA65AD4CD1FFF2 /* PromotionTests.swift */,
 				A7BFDA415FE29DB3526EAA66 /* ReturnHintTests.swift */,
+				26E8095AB4D8FA55220763B9 /* ServicePlanParserTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -363,7 +366,13 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					1D35F899AEEE1699BAC053BF = {
+						DevelopmentTeam = SYPHAMSPW3;
+						ProvisioningStyle = Automatic;
 						TestTargetID = B8F6FB3B2C632729B0929F7D;
+					};
+					A703831DEF4A3C68144E4315 = {
+						DevelopmentTeam = SYPHAMSPW3;
+						ProvisioningStyle = Automatic;
 					};
 					B8F6FB3B2C632729B0929F7D = {
 						DevelopmentTeam = SYPHAMSPW3;
@@ -416,6 +425,7 @@
 				64ED89DDDF6CE30F4DE20B4F /* NotebookEngineTests.swift in Sources */,
 				96A2FFCE32E4F1EDFE56ECDC /* PromotionTests.swift in Sources */,
 				FC0070B71126AC9E1C36F236 /* ReturnHintTests.swift in Sources */,
+				0F8DB6D5F0B0D615270FC66B /* ServicePlanParserTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -533,9 +543,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = SYPHAMSPW3;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
@@ -700,9 +712,11 @@
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = SYPHAMSPW3;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
