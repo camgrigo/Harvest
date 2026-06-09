@@ -179,10 +179,22 @@ func personDueText(_ person: Person) -> String? {
 func territorySubtitle(_ territory: Territory) -> String {
     let n = territory.doorCount
     let doors = n == 1 ? "1 not-at-home" : "\(n) not-at-homes"
+    var base: String
     if let worked = territory.lastWorkedAt {
-        return "\(doors) · last worked \(worked.formatted(.dateTime.weekday(.abbreviated)))"
+        base = "\(doors) · last worked \(worked.formatted(.dateTime.weekday(.abbreviated)))"
+    } else {
+        base = n == 0 ? "No not-at-homes yet" : doors
     }
-    return n == 0 ? "No not-at-homes yet" : doors
+    if let days = territory.daysUntilDue() {
+        let due: String
+        switch days {
+        case 0:    due = "Due today"
+        case ..<0: due = days == -1 ? "Overdue 1d" : "Overdue \(-days)d"
+        default:   due = "Due \(territory.dueDate!.formatted(.dateTime.month(.abbreviated).day()))"
+        }
+        base += " · \(due)"
+    }
+    return base
 }
 
 // MARK: - Card surface
@@ -284,6 +296,16 @@ struct PersonGridCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("personRow.name")
+            if !person.studyLesson.isEmpty {
+                HStack(spacing: 4) {
+                    Image(systemName: "book.fill")
+                        .font(.caption2)
+                    Text(lessonChipText)
+                        .font(.caption.weight(.medium))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(onImage ? Color.white.opacity(0.95) : Color.secondary)
+            }
             if !person.headline.isEmpty {
                 Text(person.headline)
                     .font(.subheadline)
@@ -292,6 +314,12 @@ struct PersonGridCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    /// "Lesson N" with the publication prefix when one is known.
+    private var lessonChipText: String {
+        let prefix = person.studyPublication.isEmpty ? "" : "\(person.studyPublication) — "
+        return "\(prefix)Lesson \(person.studyLesson)"
     }
 
     /// Top meta line: the due date (red when due/overdue) or, failing that, the interest status.

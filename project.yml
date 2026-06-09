@@ -39,6 +39,12 @@ targets:
           Lets you pick a photo of a territory to scan or attach.
         NSCalendarsWriteOnlyAccessUsageDescription: >-
           Adds your service plans to Apple Calendar when you ask.
+        NSFaceIDUsageDescription: >-
+          Protects your encrypted backup so only you can unlock it.
+        UIBackgroundModes:
+          - processing
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.camgrigo.harvest.backup
     settings:
       base:
         # Kept as the original identifier so the installed app, its on-device data,

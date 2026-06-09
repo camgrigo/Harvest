@@ -10,6 +10,16 @@ extension DateFormatter {
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
+
+    /// Filesystem-safe UTC timestamp for uniquely naming auto-backup files.
+    static let isoDateTime: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(abbreviation: "UTC")
+        f.dateFormat = "yyyy-MM-dd'T'HHmmss"
+        return f
+    }()
 }
 
 enum ReminderTime {

@@ -31,6 +31,7 @@ struct PersonDetailView: View {
                 }
             }
             infoActionsSection
+            studySection
             if isEditing { styleSection }
             if let summary {
                 Section { Text(summary).foregroundStyle(.secondary).textSelection(.enabled) }
@@ -220,6 +221,29 @@ struct PersonDetailView: View {
                         ),
                         displayedComponents: [.date, .hourAndMinute]
                     )
+                }
+            }
+        }
+    }
+
+    // MARK: Bible study
+
+    /// Read-only study progress; while editing, fields to set the publication and lesson.
+    @ViewBuilder
+    private var studySection: some View {
+        if isEditing {
+            Section("Bible Study") {
+                TextField("Publication", text: $person.studyPublication)
+                TextField("Lesson", text: $person.studyLesson)
+                    .keyboardType(.numbersAndPunctuation)
+            }
+        } else if !person.studyLesson.isEmpty || !person.studyPublication.isEmpty {
+            Section("Bible Study") {
+                if !person.studyPublication.isEmpty {
+                    LabeledContent("Publication", value: person.studyPublication)
+                }
+                if !person.studyLesson.isEmpty {
+                    LabeledContent("Lesson", value: "Lesson \(person.studyLesson)")
                 }
             }
         }

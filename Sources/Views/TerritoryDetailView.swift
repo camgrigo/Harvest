@@ -4,6 +4,7 @@ import CoreLocation
 import MapKit
 import PhotosUI
 import UIKit
+import UniformTypeIdentifiers
 
 /// One territory's working screen:
 /// - info (Directions, optional link, optional map image, Share);
@@ -15,6 +16,7 @@ import UIKit
 struct TerritoryDetailView: View {
     @Bindable var territory: Territory
     @Environment(\.modelContext) private var context
+    @Query private var allTerritories: [Territory]
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -25,6 +27,11 @@ struct TerritoryDetailView: View {
     @State private var showRename = false
     @State private var draftName = ""
     @State private var showDeleteConfirm = false
+    @State private var showCSVExporter = false
+
+    // Due date + KML import
+    @State private var showDueDatePicker = false
+    @State private var showKMLImporter = false
 
     // Link + image attachments
     @State private var showLinkEditor = false
@@ -67,6 +74,7 @@ struct TerritoryDetailView: View {
     var body: some View {
         List {
             infoSection
+            dueDateSection
             if !doNotCalls.isEmpty { doNotCallSection }
             notAtHomeSection
             suggestionsSection
@@ -96,6 +104,10 @@ struct TerritoryDetailView: View {
             .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $showImageViewer) { imageViewer }
+        .sheet(isPresented: $showCSVExporter) {
+            CSVShareSheet(data: NotAtHomeExporter.csv(territory: territory),
+                          fileName: "\(territory.name).csv")
+        }
         .alert("Rename territory", isPresented: $showRename) {
             TextField("Name", text: $draftName)
             Button("Save") {
@@ -122,6 +134,10 @@ struct TerritoryDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This territory and all its addresses will be permanently removed.")
+        }
+        .fileImporter(isPresented: $showKMLImporter,
+                      allowedContentTypes: [.kml, .kmz]) { result in
+            Task { await importKML(result) }
         }
         .sensoryFeedback(.success, trigger: addedCount)
         .onChange(of: notice) { _, value in
@@ -175,6 +191,74 @@ struct TerritoryDetailView: View {
                     .listRowInsets(EdgeInsets())
                 }
             }
+        }
+    }
+
+    private var dueDateSection: some View {
+        Section {
+            HStack {
+                Label("Due date", systemImage: "calendar.badge.clock")
+                Spacer()
+                if let due = territory.dueDate {
+                    Text(dueLabel(due))
+                        .foregroundStyle(territory.isDue() ? .red : .secondary)
+                } else {
+                    Text("Not set").foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { showDueDatePicker = true }
+            .popover(isPresented: $showDueDatePicker) {
+                duePopover
+            }
+        } footer: {
+            Text("Set a date to turn in or rotate this territory. You'll get a reminder.")
+        }
+    }
+
+    private var duePopover: some View {
+        VStack(spacing: 12) {
+            DatePicker("Due date", selection: Binding(
+                get: { territory.dueDate ?? .now },
+                set: { territory.dueDate = $0 }
+            ), displayedComponents: [.date])
+            .datePickerStyle(.graphical)
+            .labelsHidden()
+            .padding()
+
+            HStack(spacing: 12) {
+                Button("Clear") {
+                    let id = territory.id
+                    territory.dueDate = nil
+                    context.saveIfPossible()
+                    ReminderScheduler.shared.cancelTerritoryDue(id: id)
+                    showDueDatePicker = false
+                }
+                .buttonStyle(.bordered)
+
+                Button("Save") {
+                    if territory.dueDate == nil { territory.dueDate = .now }
+                    context.saveIfPossible()
+                    if let due = territory.dueDate {
+                        ReminderScheduler.shared.scheduleTerritoryDue(
+                            id: territory.id, territoryName: territory.name, on: due)
+                    }
+                    showDueDatePicker = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.bottom)
+        }
+        .presentationCompactAdaptation(.popover)
+    }
+
+    private func dueLabel(_ date: Date) -> String {
+        let formatted = date.formatted(.dateTime.month(.abbreviated).day().year())
+        guard let days = territory.daysUntilDue() else { return formatted }
+        switch days {
+        case 0:        return "Today"
+        case ..<0:     return "Overdue · \(formatted)"
+        default:       return formatted
         }
     }
 
@@ -283,6 +367,14 @@ struct TerritoryDetailView: View {
                 Button(role: .destructive) {
                     territory.mapImageData = nil; context.saveIfPossible()
                 } label: { Label("Remove image", systemImage: "photo.badge.minus") }
+            }
+
+            Button { showKMLImporter = true } label: {
+                Label("Import boundary (KML/KMZ)", systemImage: "arrow.down.doc")
+            }
+
+            Button { showCSVExporter = true } label: {
+                Label("Export as CSV", systemImage: "tablecells")
             }
 
             Divider()
@@ -395,16 +487,7 @@ struct TerritoryDetailView: View {
 
     /// A plain-text summary for the share sheet: the territory, its do-not-calls, and not-at-homes.
     private var shareText: String {
-        var lines = ["Territory: \(territory.name)"]
-        if !doNotCalls.isEmpty {
-            lines.append("\nDo not call:")
-            lines.append(contentsOf: doNotCalls.map { "• \($0.address)" })
-        }
-        if !territory.doors.isEmpty {
-            lines.append("\nNot-at-homes:")
-            lines.append(contentsOf: territory.sortedDoors.map { "• \($0.address) (tried \($0.attemptCount)×)" })
-        }
-        return lines.joined(separator: "\n")
+        NotAtHomeExporter.plainText(territory: territory)
     }
 
     // MARK: Actions
@@ -450,6 +533,10 @@ struct TerritoryDetailView: View {
         context.insert(door)
         door.territory = territory
         territory.touch()
+        VisitTracker.logVisit(
+            coordinate: CLLocationCoordinate2D(latitude: suggestion.latitude,
+                                               longitude: suggestion.longitude),
+            context: "not_at_home", in: context)
         context.saveIfPossible()
         ambient.removeAll { NearbyAddresses.normalize($0.address) == key }
         liveResults.removeAll { NearbyAddresses.normalize($0.address) == key }
@@ -472,6 +559,7 @@ struct TerritoryDetailView: View {
         if let existing = duplicate(of: resolved, near: coordinate) {
             existing.markTriedAgain()
             territory.touch()
+            VisitTracker.logVisit(coordinate: coordinate, context: "not_at_home_revisit", in: context)
             context.saveIfPossible()
             addedCount += 1
             withAnimation { notice = "Already on your list — marked tried again." }
@@ -484,6 +572,7 @@ struct TerritoryDetailView: View {
         context.insert(door)
         door.territory = territory
         territory.touch()
+        VisitTracker.logVisit(coordinate: coordinate, context: "not_at_home", in: context)
         context.saveIfPossible()
         addedCount += 1
         withAnimation { notice = "Added \(resolved)." }
@@ -536,6 +625,40 @@ struct TerritoryDetailView: View {
     private func deleteDoNotCalls(_ offsets: IndexSet) {
         for index in offsets { context.delete(doNotCalls[index]) }
         context.saveIfPossible()
+    }
+
+    /// Import KML/KMZ polygons and match them to territories by Placemark name (creating any
+    /// that don't exist). The boundary for *this* territory is applied when a name matches it.
+    private func importKML(_ result: Result<URL, Error>) async {
+        guard let fileURL = try? result.get() else { return }
+        let needsStop = fileURL.startAccessingSecurityScopedResource()
+        defer { if needsStop { fileURL.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let placemarks = try await Task.detached { try KMLParser.parse(data: data) }.value
+            guard !placemarks.isEmpty else {
+                withAnimation { notice = "No polygons found in that file." }
+                return
+            }
+            var imported = 0
+            for placemark in placemarks {
+                let target = allTerritories.first { $0.name == placemark.name }
+                if let target {
+                    target.setBoundary(placemark.coordinates)
+                } else {
+                    let created = Territory(name: placemark.name.isEmpty ? "Imported territory" : placemark.name)
+                    created.setBoundary(placemark.coordinates)
+                    context.insert(created)
+                }
+                imported += 1
+            }
+            context.saveIfPossible()
+            withAnimation {
+                notice = imported == 1 ? "Imported 1 boundary." : "Imported \(imported) boundaries."
+            }
+        } catch {
+            withAnimation { notice = "Import failed: \(error.localizedDescription)" }
+        }
     }
 
     private func deleteTerritory() {

@@ -23,6 +23,9 @@ struct NewServicePlanView: View {
     @State private var addToCalendar = false
     @State private var calendarError: String?
 
+    /// How (if at all) this plan repeats. Stored as a `RecurrenceKind` raw value.
+    @State private var recurrence = RecurrenceKind.none.rawValue
+
     /// Pre-seeds the date (e.g. the Calendar tab's selected day); defaults to the next hour.
     init(initialDate: Date = NewServicePlanView.defaultStart()) {
         _date = State(initialValue: initialDate)
@@ -119,6 +122,19 @@ struct NewServicePlanView: View {
             }
             .cardRow()
 
+            // How often it repeats.
+            HStack(spacing: 10) {
+                Image(systemName: "repeat").foregroundStyle(.secondary)
+                Picker("Repeat", selection: $recurrence) {
+                    ForEach(RecurrenceKind.allCases, id: \.rawValue) { kind in
+                        Text(kind.label).tag(kind.rawValue)
+                    }
+                }
+                .pickerStyle(.menu)
+                Spacer(minLength: 0)
+            }
+            .cardRow()
+
             // Mirror to Apple Calendar.
             Toggle(isOn: $addToCalendar) {
                 Label("Add to Apple Calendar", systemImage: "calendar")
@@ -157,7 +173,8 @@ struct NewServicePlanView: View {
             date: date,
             place: place.trimmingCharacters(in: .whitespacesAndNewlines),
             partner: partner.trimmingCharacters(in: .whitespacesAndNewlines),
-            note: ServicePlanParser.parse(text).note
+            note: ServicePlanParser.parse(text).note,
+            recurrence: recurrence
         )
         context.insert(plan)
         context.saveIfPossible()

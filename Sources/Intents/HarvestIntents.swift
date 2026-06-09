@@ -145,6 +145,146 @@ struct StartTerritoryIntent: AppIntent {
     }
 }
 
+/// Back up Harvest on demand from Siri / Shortcuts — writes an encrypted backup to iCloud Drive
+/// and confirms. Uses the passphrase saved in Settings if there is one, or one passed in.
+struct BackupHarvestIntent: AppIntent {
+    static let title: LocalizedStringResource = "Back up Harvest"
+    static let description = IntentDescription(
+        "Creates an encrypted backup of your Harvest data to iCloud Drive.")
+
+    @Parameter(title: "Passphrase", requestValueDialog: "Enter your backup passphrase")
+    var passphrase: String?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Back up Harvest")
+    }
+
+    enum IntentError: LocalizedError {
+        case missingPassphrase
+        var errorDescription: String? {
+            switch self {
+            case .missingPassphrase: "No backup passphrase is set. Add one in Harvest's Backup settings first."
+            }
+        }
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let phrase = passphrase?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty ?? BackupService.autoBackupPassphrase()
+        guard let phrase, !phrase.isEmpty else { throw IntentError.missingPassphrase }
+        let context = AppModelContainer.shared.mainContext
+        try BackupService.autoBackupToiCloud(context: context, passphrase: phrase)
+        return .result(dialog: "Backup complete. Your data is now in iCloud Drive.")
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+/// Hands-free visit logging — "Log a visit in Harvest" then dictate the whole note. The on-device
+/// language model parses it and files it (creating the person / entry / reminder as needed), then
+/// Siri speaks the chatbot's confirmation back.
+struct LogVisitBySpeechIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log a Visit by Speech"
+    static let description = IntentDescription(
+        "Dictate a visit note aloud — Harvest parses and files it, then speaks a confirmation.")
+
+    @Parameter(title: "Visit Note", requestValueDialog: "What would you like to log?")
+    var spokenNote: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Log a visit: \(\.$spokenNote)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+        let assistant = Assistant()
+        let text = spokenNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsed = await assistant.parse(text)
+        let reply = await NotebookEngine.apply(parsed, original: text, assistant: assistant, context: context)
+        context.saveIfPossible()
+        return .result(dialog: IntentDialog(stringLiteral: reply))
+    }
+}
+
+/// Start a service session hands-free — "Start a service session in Harvest". Optionally names the
+/// territory (found or created). Wire a Shortcuts "Arrive" location automation to this for
+/// auto-start on arrival (see SHORTCUTS_GUIDE.md).
+struct StartServiceSessionIntent: AppIntent {
+    static let title: LocalizedStringResource = "Start Service Session"
+    static let description = IntentDescription("Begins tracking a service session (hands-free).")
+
+    @Parameter(title: "Territory")
+    var territory: String?
+
+    @Parameter(title: "Notes")
+    var notes: String?
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Start a service session")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+
+        // Don't double-start: if one's already running, just confirm.
+        let active = (try? context.fetch(
+            FetchDescriptor<ServiceSession>(predicate: #Predicate { $0.endAt == nil && $0.deletedAt == nil })
+        ))?.first
+        if active != nil {
+            return .result(dialog: "A session is already running.")
+        }
+
+        var foundTerritory: Territory?
+        if let name = territory?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty {
+            let all = (try? context.fetch(FetchDescriptor<Territory>())) ?? []
+            foundTerritory = all.first { $0.name.compare(name, options: .caseInsensitive) == .orderedSame }
+            if foundTerritory == nil {
+                let made = Territory(name: name)
+                context.insert(made)
+                foundTerritory = made
+            }
+            foundTerritory?.touch()
+        }
+
+        let session = ServiceSession(
+            territory: foundTerritory,
+            notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "")
+        context.insert(session)
+        try context.save()
+        SessionActivityManager.startActivity(sessionStartedAt: session.startAt)
+
+        let where_ = foundTerritory?.name ?? "service"
+        return .result(dialog: "Started a \(where_) session.")
+    }
+}
+
+/// Stop the running service session — "Stop my session in Harvest" — and hear the minutes logged.
+struct StopServiceSessionIntent: AppIntent {
+    static let title: LocalizedStringResource = "Stop Service Session"
+    static let description = IntentDescription("Ends the current service session.")
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+        let active = (try? context.fetch(
+            FetchDescriptor<ServiceSession>(predicate: #Predicate { $0.endAt == nil && $0.deletedAt == nil })
+        ))?.first
+        guard let session = active else {
+            return .result(dialog: "There's no active session right now.")
+        }
+        session.stop()
+        try context.save()
+        SessionActivityManager.endActivity()
+        let mins = (session.durationSeconds ?? 0) / 60
+        return .result(dialog: "Session stopped. \(mins) minute\(mins == 1 ? "" : "s") logged.")
+    }
+}
+
 /// Registers spoken phrases so Siri and Spotlight surface these with no setup from the user.
 struct HarvestShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -194,6 +334,46 @@ struct HarvestShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Start a Territory",
             systemImageName: "map"
+        )
+        AppShortcut(
+            intent: BackupHarvestIntent(),
+            phrases: [
+                "Back up \(.applicationName)",
+                "Backup \(.applicationName)",
+                "Create a backup in \(.applicationName)"
+            ],
+            shortTitle: "Back up Harvest",
+            systemImageName: "lock.doc.fill"
+        )
+        AppShortcut(
+            intent: LogVisitBySpeechIntent(),
+            phrases: [
+                "Log a visit in \(.applicationName)",
+                "File a visit in \(.applicationName)",
+                "Record a visit in \(.applicationName)"
+            ],
+            shortTitle: "Log a Visit",
+            systemImageName: "mic.badge.plus"
+        )
+        AppShortcut(
+            intent: StartServiceSessionIntent(),
+            phrases: [
+                "Start a service session in \(.applicationName)",
+                "Start ministry in \(.applicationName)",
+                "Start my session in \(.applicationName)"
+            ],
+            shortTitle: "Start Session",
+            systemImageName: "play.circle"
+        )
+        AppShortcut(
+            intent: StopServiceSessionIntent(),
+            phrases: [
+                "Stop my session in \(.applicationName)",
+                "End service session in \(.applicationName)",
+                "Stop ministry in \(.applicationName)"
+            ],
+            shortTitle: "Stop Session",
+            systemImageName: "stop.circle"
         )
     }
 }

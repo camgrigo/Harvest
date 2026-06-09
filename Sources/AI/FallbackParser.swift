@@ -54,8 +54,53 @@ enum FallbackParser {
             note: text,
             followUpDate: detectFollowUp(in: lower),
             interest: isEdit ? interestGuess : .unknown,
-            newName: renameTo
+            newName: renameTo,
+            studyLesson: detectStudyLesson(in: lower),
+            studyPublication: detectStudyPublication(in: lower)
         )
+    }
+
+    /// Extracts a lesson number (e.g. "Lesson 5", "lf lesson 2"). Returns "" if none found.
+    private static func detectStudyLesson(in lower: String) -> String {
+        guard let match = lower.range(of: #"lesson\s+(\d+)"#, options: .regularExpression) else {
+            return ""
+        }
+        let text = lower[match]
+        if let numMatch = text.range(of: #"\d+"#, options: .regularExpression) {
+            return String(text[numMatch])
+        }
+        return ""
+    }
+
+    /// Extracts the publication being studied from standard jw.org abbreviations/titles.
+    /// Returns the canonical title, or "" if none recognised.
+    private static func detectStudyPublication(in lower: String) -> String {
+        // Most specific keys first so e.g. "what does the bible really teach" wins over a shorter match.
+        let publications: [(keys: [String], canonical: String)] = [
+            (["enjoy life forever", "elf", "lff"], "Enjoy Life Forever!"),
+            (["what can the bible teach us", "bhs"], "What Can the Bible Teach Us?"),
+            (["what does the bible really teach", "bh"], "What Does the Bible Really Teach?"),
+            (["good news from god", "fg"], "Good News From God!"),
+            (["listen to god and live forever", "ll"], "Listen to God and Live Forever"),
+            (["listen to god", "ld"], "Listen to God"),
+            (["was life created", "lc"], "Was Life Created?"),
+            (["where can we find answers", "lvs"], "Where Can We Find Answers to Life's Big Questions?"),
+            (["who are doing jehovah's will", "jwl"], "Who Are Doing Jehovah's Will Today?"),
+        ]
+        for pub in publications {
+            for key in pub.keys where wordBoundedContains(lower, key) {
+                return pub.canonical
+            }
+        }
+        return ""
+    }
+
+    /// Contains-check that, for short alphabetic abbreviations (e.g. "ll", "bh"), requires the key
+    /// to stand alone as a word so it doesn't match inside ordinary words.
+    private static func wordBoundedContains(_ haystack: String, _ key: String) -> Bool {
+        if key.contains(" ") || key.count > 3 { return haystack.contains(key) }
+        let pattern = "\\b" + NSRegularExpression.escapedPattern(for: key) + "\\b"
+        return haystack.range(of: pattern, options: .regularExpression) != nil
     }
 
     static func summary(name: String, entries: [JournalEntry]) -> String {

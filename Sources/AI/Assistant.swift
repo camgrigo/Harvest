@@ -88,7 +88,10 @@ final class Assistant {
         Resolve relative dates such as "Saturday", "tomorrow", or "in three days" into an \
         exact YYYY-MM-DD date based on today. If the user only jotted a note or asked a \
         question, pick the closest intent and leave any field you can't fill as an empty string. \
-        Keep the note text faithful to the user's own words.
+        Keep the note text faithful to the user's own words. \
+        When the user mentions a Bible study, extract any lesson number into studyLesson as a bare \
+        number (e.g. "Lesson 5" or "lf lesson 2" → "5"/"2") and the publication into \
+        studyPublication, using the publicationGuide below to resolve abbreviations to the full title.
 
         \(Self.publicationGuide)
         """

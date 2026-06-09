@@ -16,6 +16,12 @@ struct ServicePlansView: View {
     private var upcoming: [ServicePlan] { plans.filter(\.isUpcoming) }
     private var past: [ServicePlan] { plans.filter { !$0.isUpcoming }.reversed() }
 
+    /// Projected future dates for recurring plans (the originals aren't stored repeatedly — they're
+    /// expanded on the fly), looking ahead a few months so the Calendar tab shows what's coming.
+    private var upcomingOccurrences: [RecurringOccurrence] {
+        RecurringOccurrence.upcoming(from: plans)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -39,6 +45,25 @@ struct ServicePlansView: View {
                                         .onDelete { delete(upcoming, $0) }
                                 }
                             }
+                            if !upcomingOccurrences.isEmpty {
+                                Section("Repeats") {
+                                    ForEach(upcomingOccurrences) { occurrence in
+                                        Button { editing = occurrence.plan } label: {
+                                            HStack(spacing: 10) {
+                                                Image(systemName: "repeat")
+                                                    .foregroundStyle(.secondary)
+                                                VStack(alignment: .leading, spacing: 2) {
+                                                    Text(occurrence.date.formatted(.dateTime.weekday(.abbreviated).month().day().hour().minute()))
+                                                        .font(.subheadline.weight(.medium))
+                                                    Text(occurrence.plan.recurrenceKind.label)
+                                                        .font(.caption).foregroundStyle(.secondary)
+                                                }
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            }
                             if !past.isEmpty {
                                 Section("Past") {
                                     ForEach(past) { planRow($0) }
@@ -51,7 +76,12 @@ struct ServicePlansView: View {
             }
             .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) { addBar }
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 0) {
+                    ServiceSessionControlView()
+                    addBar
+                }
+            }
             .sheet(item: $editing) { plan in PlanEditor(plan: plan) }
             .sheet(isPresented: $addingNew) { NewServicePlanView(initialDate: selectedDate) }
         }
@@ -144,6 +174,39 @@ struct ServicePlansView: View {
     }
 }
 
+/// A single projected future date for a recurring plan. The plan itself is stored once; its later
+/// occurrences are computed here so the Calendar tab can show "what's coming" without duplicating
+/// records. Pure value type so the expansion math is unit-testable.
+struct RecurringOccurrence: Identifiable {
+    let id = UUID()
+    let plan: ServicePlan
+    let date: Date
+
+    /// Expand every recurring plan into its upcoming occurrences within `horizon` of `now`, sorted
+    /// by date. Non-recurring plans contribute nothing (they already show in the normal sections).
+    static func upcoming(
+        from plans: [ServicePlan],
+        now: Date = .now,
+        horizon: DateComponents = DateComponents(month: 3),
+        calendar: Calendar = .current
+    ) -> [RecurringOccurrence] {
+        guard let cutoff = calendar.date(byAdding: horizon, to: now) else { return [] }
+        var result: [RecurringOccurrence] = []
+        for plan in plans where plan.recurrenceKind != .none {
+            let kind = plan.recurrenceKind
+            var cursor = plan.date
+            var guardCount = 0
+            while let next = kind.nextDate(after: cursor, calendar: calendar),
+                  next <= cutoff, guardCount < 200 {
+                if next > now { result.append(RecurringOccurrence(plan: plan, date: next)) }
+                cursor = next
+                guardCount += 1
+            }
+        }
+        return result.sorted { $0.date < $1.date }
+    }
+}
+
 /// Add or edit a single plan. On save, optionally mirrors it to Apple Calendar.
 private struct PlanEditor: View {
     let plan: ServicePlan?
@@ -155,6 +218,7 @@ private struct PlanEditor: View {
     @State private var place: String
     @State private var partner: String
     @State private var note: String
+    @State private var recurrence: String
     @State private var addToCalendar: Bool
     @State private var calendarError: String?
 
@@ -164,6 +228,7 @@ private struct PlanEditor: View {
         _place = State(initialValue: plan?.place ?? "")
         _partner = State(initialValue: plan?.partner ?? "")
         _note = State(initialValue: plan?.note ?? "")
+        _recurrence = State(initialValue: plan?.recurrence ?? RecurrenceKind.none.rawValue)
         _addToCalendar = State(initialValue: false)
     }
 
@@ -181,6 +246,13 @@ private struct PlanEditor: View {
                 Section("Notes") {
                     TextField("e.g. bring magazines, work Oak St territory", text: $note, axis: .vertical)
                         .lineLimit(2...5)
+                }
+                Section("Repeat") {
+                    Picker("Repeat", selection: $recurrence) {
+                        ForEach(RecurrenceKind.allCases, id: \.rawValue) { kind in
+                            Text(kind.label).tag(kind.rawValue)
+                        }
+                    }
                 }
                 Toggle("Add to Apple Calendar", isOn: $addToCalendar)
             }
@@ -206,9 +278,11 @@ private struct PlanEditor: View {
             plan.place = place
             plan.partner = partner
             plan.note = note
+            plan.recurrence = recurrence
             target = plan
         } else {
-            let new = ServicePlan(date: date, place: place, partner: partner, note: note)
+            let new = ServicePlan(date: date, place: place, partner: partner, note: note,
+                                  recurrence: recurrence)
             context.insert(new)
             target = new
         }

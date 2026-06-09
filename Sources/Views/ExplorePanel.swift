@@ -48,6 +48,10 @@ struct PeoplePanelContent: View {
     @State private var showNewPerson = false
     @State private var showBackup = false
     @State private var showFullMap = false
+    @State private var detectedDuplicates: Set<DuplicatePair> = []
+    @State private var mergeSource: Person?
+    @State private var mergeTarget: Person?
+    @State private var mergeResult: String?
     @Namespace private var mapZoom
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
@@ -222,6 +226,34 @@ struct PeoplePanelContent: View {
             .task {
                 if userLocation == nil { await refreshLocation() }
             }
+            .onAppear { detectedDuplicates = DuplicateDetector.findDuplicates(in: people) }
+            .onChange(of: people) { _, newPeople in
+                detectedDuplicates = DuplicateDetector.findDuplicates(in: newPeople)
+            }
+            .confirmationDialog(
+                "Merge \(mergeSource?.name ?? "") into \(mergeTarget?.name ?? "")?",
+                isPresented: Binding(get: { mergeSource != nil && mergeTarget != nil },
+                                     set: { if !$0 { mergeSource = nil; mergeTarget = nil } }),
+                titleVisibility: .visible
+            ) {
+                Button("Merge", role: .destructive) {
+                    if let source = mergeSource, let target = mergeTarget {
+                        mergeResult = NotebookEngine.merge(source: source, into: target, context: context)
+                    }
+                    mergeSource = nil; mergeTarget = nil
+                }
+                Button("Cancel", role: .cancel) { mergeSource = nil; mergeTarget = nil }
+            } message: {
+                if let source = mergeSource, let target = mergeTarget {
+                    Text("All notes from \(source.name) move to \(target.name), and \(source.name) is deleted.")
+                }
+            }
+            .alert("Merged", isPresented: Binding(get: { mergeResult != nil },
+                                                  set: { if !$0 { mergeResult = nil } })) {
+                Button("OK", role: .cancel) { mergeResult = nil }
+            } message: {
+                Text(mergeResult ?? "")
+            }
         }
     }
 
@@ -289,10 +321,36 @@ struct PeoplePanelContent: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
+            let others = duplicatePartners(of: person)
+            if !others.isEmpty {
+                Menu {
+                    ForEach(others) { other in
+                        Button {
+                            mergeSource = other
+                            mergeTarget = person
+                        } label: {
+                            Label("Merge with \(other.name)", systemImage: "person.2")
+                        }
+                    }
+                } label: {
+                    Label("Merge", systemImage: "person.2.fill")
+                }
+            }
             Button(role: .destructive) { personToDelete = person } label: {
                 Label("Delete", systemImage: "trash")
             }
         }
+    }
+
+    /// The active people flagged as likely duplicates of `person`, by the detected pairs.
+    private func duplicatePartners(of person: Person) -> [Person] {
+        let partnerIDs = detectedDuplicates.compactMap { pair -> UUID? in
+            if pair.id1 == person.id { return pair.id2 }
+            if pair.id2 == person.id { return pair.id1 }
+            return nil
+        }
+        return partnerIDs.compactMap { id in people.first { $0.id == id } }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     /// Territories as their own single-column section.

@@ -53,6 +53,20 @@ struct ExploreView: View {
     @Query(filter: #Predicate<Person> { !$0.isArchived },
            sort: \Person.createdAt, order: .reverse) private var people: [Person]
     @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
+    @Query(sort: \CongregationBoundary.createdAt, order: .reverse)
+    private var congregationBoundaries: [CongregationBoundary]
+    @Query(sort: \VisitLog.timestamp) private var visitLogs: [VisitLog]
+    @Environment(\.modelContext) private var context
+
+    /// The active congregation boundary (most recently created), if any.
+    private var congregationBoundary: CongregationBoundary? { congregationBoundaries.first }
+    /// Territories that have a drawable polygon (at least a triangle).
+    private var boundedTerritories: [Territory] { territories.filter { $0.coordinates.count >= 3 } }
+
+    // Boundary styling: territory fill/stroke in one hue, congregation outline in a distinct one.
+    private static let territoryFill = Color.blue.opacity(0.18)
+    private static let territoryStroke = Color.blue.opacity(0.7)
+    private static let congregationStroke = Color.purple.opacity(0.8)
 
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
     @State private var selected: MapTarget?
@@ -79,6 +93,19 @@ struct ExploreView: View {
     /// in the callout.
     @State private var routeCoords: [CLLocationCoordinate2D] = []
     @State private var routeMinutes: Int?
+
+    // Today's trail breadcrumb.
+    @AppStorage("map.showBreadcrumb") private var showBreadcrumb = false
+    // Best-effort offline tiles.
+    @AppStorage("map.offlineEnabled") private var offlineEnabled = false
+    @State private var isDownloadingTiles = false
+    @State private var showOfflineDownloadPrompt = false
+    @State private var offlineNotice: String?
+
+    /// Today's visited coordinates, oldest→newest, for the breadcrumb polyline.
+    private var breadcrumbCoordinates: [CLLocationCoordinate2D] {
+        VisitTracker.pointsToday(from: visitLogs).map(\.coordinate)
+    }
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -120,6 +147,15 @@ struct ExploreView: View {
                 .sheet(isPresented: $showSearch) {
                     MapSearchView(people: people, territories: territories) { jump(to: $0) }
                 }
+                .sheet(isPresented: $showOfflineDownloadPrompt) {
+                    offlineDownloadSheet
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
+                }
+                .task {
+                    // Keep the breadcrumb store small: drop logs older than 30 days on open.
+                    VisitTracker.purgeOld(from: context)
+                }
         }
         .offset(x: dismissDrag)
     }
@@ -130,9 +166,30 @@ struct ExploreView: View {
         MapReader { proxy in
             Map(position: $camera, selection: $selected) {
                 UserAnnotation()
+                // Territory boundaries: shaded polygons drawn under the markers so pins stay tappable.
+                ForEach(boundedTerritories) { territory in
+                    MapPolygon(coordinates: territory.coordinates)
+                        .foregroundStyle(Self.territoryFill)
+                        .stroke(Self.territoryStroke, lineWidth: 2)
+                }
+                // Congregation boundary: an outline in a distinct color, no fill.
+                if let cong = congregationBoundary, cong.coordinates.count >= 2 {
+                    MapPolyline(coordinates: cong.coordinates + [cong.coordinates[0]])
+                        .stroke(Self.congregationStroke,
+                                style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                }
                 if !routeCoords.isEmpty {
                     MapPolyline(coordinates: routeCoords)
                         .stroke(routeColor, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
+                }
+                // Today's trail: where you've been today, drawn behind the markers.
+                if showBreadcrumb {
+                    let trail = breadcrumbCoordinates
+                    if trail.count >= 2 {
+                        MapPolyline(coordinates: trail)
+                            .stroke(Color.blue.opacity(0.5),
+                                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [2, 6]))
+                    }
                 }
                 ForEach(clustered) { item in
                     if case .single(let point) = item {
@@ -191,6 +248,15 @@ struct ExploreView: View {
                     lookChooser.presentationCompactAdaptation(.popover)
                 }
                 .accessibilityLabel("Map style")
+            Button { showBreadcrumb.toggle() } label: {
+                controlGlyph(showBreadcrumb ? "point.topleft.down.curvedto.point.bottomright.up.fill"
+                                            : "point.topleft.down.curvedto.point.bottomright.up")
+            }
+            .accessibilityLabel(showBreadcrumb ? "Hide today's trail" : "Show today's trail")
+            Button { showOfflineDownloadPrompt = true } label: {
+                controlGlyph(offlineEnabled ? "arrow.down.circle.fill" : "arrow.down.circle")
+            }
+            .accessibilityLabel("Download this area for offline use")
             Button { frameAll() } label: { controlGlyph("scope") }
                 .accessibilityLabel("Show everything")
         }
@@ -205,6 +271,70 @@ struct ExploreView: View {
             .frame(width: 44, height: 44)
             .background(.regularMaterial, in: Circle())
             .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+    }
+
+    // MARK: Offline tiles
+
+    /// A short sheet explaining the honest limits of offline maps, with a "Download" action that
+    /// prefetches the current viewport's OpenStreetMap tiles into a session-only cache.
+    private var offlineDownloadSheet: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Image(systemName: "square.and.arrow.down.on.square")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.tint)
+                Text("Download this area")
+                    .font(.title3.weight(.semibold))
+                Text("Fetches map tiles for what's on screen now and keeps them for this session, so they still draw if you go offline. This is best-effort — it can't download new tiles without a connection, and it won't make Apple's base map fully offline.")
+                    .font(.callout)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                if let offlineNotice {
+                    Text(offlineNotice).font(.caption).foregroundStyle(.secondary)
+                }
+                Button {
+                    Task { await downloadCurrentRegion() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isDownloadingTiles { ProgressView().tint(.white) }
+                        else { Image(systemName: "arrow.down.circle.fill") }
+                        Text(isDownloadingTiles ? "Downloading…" : "Download")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(isDownloadingTiles)
+                Spacer()
+            }
+            .padding()
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showOfflineDownloadPrompt = false }
+                }
+            }
+        }
+    }
+
+    private func downloadCurrentRegion() async {
+        guard let region = visibleRegion else {
+            offlineNotice = "Move the map to the area you want first."
+            return
+        }
+        isDownloadingTiles = true
+        defer { isDownloadingTiles = false }
+        let radius = max(200, region.span.latitudeDelta * 111_000 / 2)
+        let circular = CLCircularRegion(center: region.center,
+                                        radius: radius,
+                                        identifier: "offline-\(UUID().uuidString)")
+        let fetched = await TileOverlayCache.shared.prefetchTiles(for: circular)
+        offlineEnabled = true
+        offlineNotice = fetched > 0
+            ? "Cached \(fetched) tiles for this session."
+            : "No new tiles fetched (already cached or no connection)."
     }
 
     /// Re-frame the camera to show everyone (the opening overview).

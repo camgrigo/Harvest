@@ -26,6 +26,9 @@ struct SettingsView: View {
 
     @State private var passphrase = ""
     @State private var shareItem: ShareItem?
+    @State private var useFaceID = false
+    @State private var isWorking = false
+    @AppStorage("harvest.autoBackupEnabled") private var autoBackupEnabled = false
 
     @State private var importPassphrase = ""
     @State private var pendingImport: Data?
@@ -35,6 +38,9 @@ struct SettingsView: View {
     @State private var alertMessage: String?
     @State private var didRestore = false
 
+    /// The user's reminder preferences, loaded from `UserDefaults` and saved whenever changed.
+    @State private var policy = NotificationPolicyStore.load()
+
     private var defaultFilename: String {
         "Harvest-backup-\(DateFormatter.ymd.string(from: .now))"
     }
@@ -42,19 +48,43 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                remindersSection
+
                 Section {
                     SecureField("Passphrase", text: $passphrase)
                         .textContentType(.password)
+                    Toggle("Use Face ID to protect backup", isOn: $useFaceID)
                     Button {
                         export()
                     } label: {
-                        Label("Export encrypted backup", systemImage: "lock.doc")
+                        if isWorking {
+                            ProgressView()
+                        } else {
+                            Label("Export encrypted backup", systemImage: "lock.doc")
+                        }
                     }
-                    .disabled(passphrase.count < 4)
+                    .disabled((!useFaceID && passphrase.count < 4) || isWorking)
                 } header: {
                     Text("Backup")
                 } footer: {
-                    Text("Your whole notebook is encrypted with this passphrase into one file. It stays on your device unless you share it — and can't be opened without the passphrase, so keep it somewhere safe.")
+                    Text("Your whole notebook is encrypted into one file. It stays on your device unless you share it — and can't be opened without the passphrase, so keep it somewhere safe.")
+                    + Text(useFaceID ? " Face ID protects this backup; you'll still keep a passphrase as a fallback." : "")
+                }
+
+                Section {
+                    Toggle("Daily backup to iCloud Drive", isOn: $autoBackupEnabled)
+                        .disabled(passphrase.count < 4)
+                        .onChange(of: autoBackupEnabled) { _, on in
+                            BackupService.setAutoBackupPassphrase(on ? passphrase : nil)
+                            if on { HarvestApp.scheduleAutoBackupTask() }
+                        }
+                        .onChange(of: passphrase) { _, newValue in
+                            if autoBackupEnabled { BackupService.setAutoBackupPassphrase(newValue) }
+                        }
+                } header: {
+                    Text("Automatic backup")
+                } footer: {
+                    Text("When on, Harvest writes an encrypted daily backup to your iCloud Drive using the passphrase above. Needs iCloud Drive enabled.")
                 }
 
                 Section {
@@ -78,6 +108,9 @@ struct SettingsView: View {
                 } footer: {
                     Text("Restoring replaces all current people, territories, and notes with the backup's contents.")
                 }
+            }
+            .onChange(of: policy) { _, newValue in
+                NotificationPolicyStore.save(newValue)
             }
             .navigationTitle("Backup & Restore")
             .navigationBarTitleDisplayMode(.inline)
@@ -108,15 +141,60 @@ struct SettingsView: View {
         }
     }
 
+    /// Reminders preferences: master switch, the default time of day, and optional quiet hours.
+    @ViewBuilder
+    private var remindersSection: some View {
+        Section {
+            Toggle("Reminders", isOn: $policy.remindersEnabled)
+            if policy.remindersEnabled {
+                Picker("Default time", selection: $policy.defaultReminderHour) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        Text(Self.hourLabel(hour)).tag(hour)
+                    }
+                }
+                Toggle("Quiet hours", isOn: $policy.quietHoursEnabled)
+                if policy.quietHoursEnabled {
+                    Picker("From", selection: $policy.quietHoursStart) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(Self.hourLabel(hour)).tag(hour)
+                        }
+                    }
+                    Picker("To", selection: $policy.quietHoursEnd) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(Self.hourLabel(hour)).tag(hour)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Reminders")
+        } footer: {
+            Text("Reminders that are overdue or due within the hour stay urgent; the rest are gentle so your Focus and notification summary can handle them. Quiet hours nudge a reminder to the morning instead of waking you.")
+        }
+    }
+
+    /// "9:00 AM"-style label for an hour-of-day, using the device's locale.
+    private static func hourLabel(_ hour: Int) -> String {
+        var comps = DateComponents()
+        comps.hour = hour
+        let date = Calendar.current.date(from: comps) ?? .now
+        return date.formatted(.dateTime.hour().minute())
+    }
+
     private func export() {
-        do {
-            let data = try BackupService.makeBackup(context: context, passphrase: passphrase)
-            let url = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(defaultFilename).harvestbackup")
-            try data.write(to: url, options: .atomic)
-            shareItem = ShareItem(url: url)
-        } catch {
-            alertMessage = error.localizedDescription
+        isWorking = true
+        Task {
+            defer { isWorking = false }
+            do {
+                let strategy: KeyDerivationStrategy = useFaceID ? .biometric : .passphrase(passphrase)
+                let data = try await BackupService.makeBackup(context: context, strategy: strategy)
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("\(defaultFilename).harvestbackup")
+                try data.write(to: url, options: .atomic)
+                shareItem = ShareItem(url: url)
+            } catch {
+                alertMessage = error.localizedDescription
+            }
         }
     }
 

@@ -22,6 +22,10 @@ final class Person {
     /// their page. Defaulted so existing rows migrate cleanly to the prior look (serif / classic).
     var nameFontRaw: String = "serif"
     var themeRaw: String = "classic"
+    /// Publication being studied (e.g. "Enjoy Life Forever!"), or empty. Defaulted for migration.
+    var studyPublication: String = ""
+    /// Current Bible-study lesson number as text (e.g. "5"), or empty. Defaulted for migration.
+    var studyLesson: String = ""
 
     @Relationship(deleteRule: .cascade, inverse: \JournalEntry.person)
     var entries: [JournalEntry]

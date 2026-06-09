@@ -20,6 +20,14 @@ final class Territory {
     var urlString: String?
     /// Optional attached image of the territory map (a photo or screenshot).
     var mapImageData: Data?
+    /// Optional due date to return or turn in the territory (e.g. "next rotation").
+    /// Additive property with a default for SwiftData lightweight migration.
+    var dueDate: Date? = nil
+    /// Polygon boundary as comma-separated lat,lon pairs, rings joined by ";".
+    /// Example: "40.123,-74.456;40.124,-74.457;40.125,-74.458". Empty when unset.
+    /// Decoded to [CLLocationCoordinate2D] on demand via `coordinates`. Stored as a String
+    /// for SwiftData compatibility and to allow lightweight migration with a default.
+    var boundaryData: String = ""
 
     @Relationship(deleteRule: .cascade, inverse: \NotAtHome.territory)
     var doors: [NotAtHome]
@@ -55,6 +63,16 @@ final class Territory {
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
 
+    /// Decode the boundary string to an array of coordinates (empty when no boundary is set).
+    var coordinates: [CLLocationCoordinate2D] {
+        BoundaryCoding.decode(boundaryData)
+    }
+
+    /// Store a polygon ring as the boundary, encoding it to the storage format.
+    func setBoundary(_ coords: [CLLocationCoordinate2D]) {
+        boundaryData = BoundaryCoding.encode(coords)
+    }
+
     var doorCount: Int { doors.count }
 
     /// Doors newest-first for the territory list.
@@ -76,5 +94,20 @@ final class Territory {
     /// Record that you worked this territory just now (adding or re-trying a door).
     func touch(at date: Date = .now) {
         lastWorkedAt = date
+    }
+
+    /// Whole-day count from `now` until the due date: 0 = due today, negative = overdue,
+    /// positive = days remaining. nil when no due date is set. Pure + date-relative so it's testable.
+    func daysUntilDue(asOf now: Date = .now, calendar: Calendar = .current) -> Int? {
+        guard let dueDate else { return nil }
+        let start = calendar.startOfDay(for: now)
+        let end = calendar.startOfDay(for: dueDate)
+        return calendar.dateComponents([.day], from: start, to: end).day
+    }
+
+    /// True when a due date is set and it's today or in the past.
+    func isDue(asOf now: Date = .now, calendar: Calendar = .current) -> Bool {
+        guard let days = daysUntilDue(asOf: now, calendar: calendar) else { return false }
+        return days <= 0
     }
 }

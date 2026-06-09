@@ -139,6 +139,18 @@ enum NotebookEngine {
             }
         }
 
+        // Update study progress.
+        let lesson = parsed.studyLesson.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !lesson.isEmpty, lesson.compare(person.studyLesson, options: .caseInsensitive) != .orderedSame {
+            person.studyLesson = lesson
+            changes.append("set lesson to \(lesson)")
+        }
+        let pub = parsed.studyPublication.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !pub.isEmpty, pub.compare(person.studyPublication, options: .caseInsensitive) != .orderedSame {
+            person.studyPublication = pub
+            changes.append("set publication to \(pub)")
+        }
+
         // Reminder: clear it, or set a new date.
         let lower = original.lowercased()
         let clearsReminder = lower.contains("remind")
@@ -205,6 +217,16 @@ enum NotebookEngine {
         // Interest, only when the model is confident and we won't stomp a manual choice.
         if let level = parsed.interest.level, person.interest == .new {
             person.interest = level
+        }
+
+        // Update study progress if mentioned.
+        let lesson = parsed.studyLesson.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !lesson.isEmpty, lesson != person.studyLesson {
+            person.studyLesson = lesson
+        }
+        let studyPub = parsed.studyPublication.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !studyPub.isEmpty, studyPub != person.studyPublication {
+            person.studyPublication = studyPub
         }
 
         // Reminder: explicit date if given, else a smart suggestion for a logged visit.
@@ -289,5 +311,88 @@ enum NotebookEngine {
             return "• \(person.name) — \(overdue ? "overdue (was \(label))" : "due \(label)")"
         }
         return "Here's who's coming up:\n" + lines.joined(separator: "\n")
+    }
+
+    // MARK: Merging duplicates
+
+    /// Higher comes first — the value we prefer to keep when merging two people.
+    /// .interested displays as "None", so it ranks below an explicit "new".
+    private static let interestPriority: [InterestLevel] = [.studying, .interested, .new, .paused]
+
+    /// Merges `source` into `target`: moves all journal entries, keeps the best field values,
+    /// then deletes `source`. Both must already live in `context`. Returns a summary for feedback.
+    static func merge(source: Person, into target: Person, context: ModelContext) -> String {
+        guard source.id != target.id else { return "Nothing to merge." }
+        var changes: [String] = []
+
+        // Move all entries (active and soft-deleted) from source to target.
+        let movedCount = source.entries.count
+        for entry in source.entries {
+            entry.person = target
+        }
+        if movedCount > 0 {
+            changes.append("moved \(movedCount) note\(movedCount == 1 ? "" : "s")")
+        }
+
+        // Address: take source's only if target has none (prefer target's existing pin).
+        if target.addressText.isEmpty, !source.addressText.isEmpty {
+            target.addressText = source.addressText
+            target.latitude = source.latitude
+            target.longitude = source.longitude
+            changes.append("kept the address from the duplicate")
+        }
+
+        // Interest: keep the higher-priority level.
+        if let targetIdx = interestPriority.firstIndex(of: target.interest),
+           let sourceIdx = interestPriority.firstIndex(of: source.interest),
+           sourceIdx < targetIdx {
+            target.interest = source.interest
+            changes.append("upgraded interest to \(source.interest.label)")
+        }
+
+        // Reminder: keep the soonest (most urgent).
+        if let sourceDate = source.nextVisitDate {
+            if let targetDate = target.nextVisitDate {
+                if sourceDate < targetDate {
+                    target.nextVisitDate = sourceDate
+                    ReminderScheduler.shared.schedule(id: target.id, name: target.name, on: sourceDate)
+                    changes.append("kept the earlier reminder")
+                }
+            } else {
+                target.nextVisitDate = sourceDate
+                ReminderScheduler.shared.schedule(id: target.id, name: target.name, on: sourceDate)
+                changes.append("added a reminder from the duplicate")
+            }
+        }
+
+        // Study progress: prefer the further-along lesson; fill in if target had none.
+        if !source.studyLesson.isEmpty {
+            if target.studyLesson.isEmpty {
+                target.studyLesson = source.studyLesson
+                if target.studyPublication.isEmpty { target.studyPublication = source.studyPublication }
+                changes.append("added study progress")
+            } else if let s = Int(source.studyLesson), let t = Int(target.studyLesson), s > t {
+                target.studyLesson = source.studyLesson
+                if !source.studyPublication.isEmpty { target.studyPublication = source.studyPublication }
+                changes.append("upgraded to lesson \(source.studyLesson)")
+            }
+        } else if target.studyPublication.isEmpty, !source.studyPublication.isEmpty {
+            target.studyPublication = source.studyPublication
+        }
+
+        // Keep a headline if the target lacks one.
+        if target.headline.isEmpty, !source.headline.isEmpty {
+            target.headline = source.headline
+        }
+
+        // Drop the source's reminder, then delete it.
+        if source.nextVisitDate != nil {
+            ReminderScheduler.shared.cancel(id: source.id)
+        }
+        context.delete(source)
+        context.saveIfPossible()
+
+        let detail = changes.isEmpty ? "combined the records" : changes.joined(separator: "; ")
+        return "Merged into \(target.name): \(detail)."
     }
 }

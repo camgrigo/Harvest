@@ -39,6 +39,7 @@ struct RootView: View {
             .task { migrateOrphanDoors() }
             .task { backfillAttemptTimes() }
             .task { purgeDeletedNotes() }
+            .task { SessionReportEngine.purgeSoftDeleted(context: context) }
             .sheet(item: $routedPerson) { person in
                 NavigationStack { PersonDetailView(person: person) }
             }

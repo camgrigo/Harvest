@@ -56,6 +56,12 @@ struct ParsedMessage {
 
     @Guide(description: "If the user wants to correct or change the person's name (a rename), the new name; otherwise an empty string.")
     var newName: String = ""
+
+    @Guide(description: "The Bible-study lesson number if mentioned (e.g. '5', 'lesson 5', 'lf lesson 2'), as a bare number string, or empty if none.")
+    var studyLesson: String = ""
+
+    @Guide(description: "The publication/curriculum being studied, e.g. 'Enjoy Life Forever!' or its abbreviation (ELF, lff, bhs, bh, lc, ld, ll, fg, lvs, jwl). Empty if no publication mentioned.")
+    var studyPublication: String = ""
 }
 
 extension InterestGuess {

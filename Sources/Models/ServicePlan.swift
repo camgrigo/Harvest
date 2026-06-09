@@ -12,12 +12,16 @@ final class ServicePlan {
     var partner: String
     var note: String
     var createdAt: Date
+    /// How (if at all) this plan repeats. Stored as a `RecurrenceKind` raw value. Defaults to
+    /// "none" so existing records migrate cleanly (SwiftData lightweight migration).
+    var recurrence: String = "none"
 
     init(date: Date = .now,
          durationMinutes: Int = 120,
          place: String = "",
          partner: String = "",
          note: String = "",
+         recurrence: String = "none",
          createdAt: Date = .now) {
         self.id = UUID()
         self.date = date
@@ -25,9 +29,49 @@ final class ServicePlan {
         self.place = place
         self.partner = partner
         self.note = note
+        self.recurrence = recurrence
         self.createdAt = createdAt
     }
 
     var end: Date { date.addingTimeInterval(TimeInterval(durationMinutes * 60)) }
     var isUpcoming: Bool { end >= .now }
+
+    /// Typed view over the stored `recurrence` string.
+    var recurrenceKind: RecurrenceKind {
+        get { RecurrenceKind(rawValue: recurrence) ?? .none }
+        set { recurrence = newValue.rawValue }
+    }
+
+    /// The date of the next occurrence after this plan's `date`, or `nil` if it doesn't repeat.
+    func nextOccurrence() -> Date? {
+        RecurrenceKind(rawValue: recurrence)?.nextDate(after: date)
+    }
+}
+
+/// How a service plan repeats. Pure value type so the date math is easy to unit-test.
+enum RecurrenceKind: String, Codable, CaseIterable {
+    case none
+    case weekly
+    case biweekly
+    case monthly
+
+    var label: String {
+        switch self {
+        case .none: return "None"
+        case .weekly: return "Weekly"
+        case .biweekly: return "Every 2 weeks"
+        case .monthly: return "Monthly"
+        }
+    }
+
+    /// The next occurrence after `date`, or `nil` for `.none`. Uses the user's calendar so DST and
+    /// month-length edge cases (e.g. Jan 31 + month) behave like the system Calendar app.
+    func nextDate(after date: Date, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .none:    return nil
+        case .weekly:  return calendar.date(byAdding: .weekOfYear, value: 1, to: date)
+        case .biweekly: return calendar.date(byAdding: .weekOfYear, value: 2, to: date)
+        case .monthly: return calendar.date(byAdding: .month, value: 1, to: date)
+        }
+    }
 }

@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.camgrigo.harvest.backup</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -24,6 +28,8 @@
 	<string>Adds your service plans to Apple Calendar when you ask.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Scans a territory card to read its do-not-call list and find its location.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Protects your encrypted backup so only you can unlock it.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Shows your return visits on the map and where you are in relation to them.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -32,6 +38,10 @@
 	<string>Lets you pick a photo of a territory to scan or attach.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Turns your dictated note into text. Speech is processed on your device.</string>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
