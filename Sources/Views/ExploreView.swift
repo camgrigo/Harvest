@@ -69,6 +69,8 @@ struct ExploreView: View {
     @State private var showLookChooser = false
     /// When set (presented full-screen from the People tab), shows an X to dismiss.
     var onClose: (() -> Void)? = nil
+    /// Live offset while swiping in from the left edge to dismiss the full-screen map.
+    @State private var dismissDrag: CGFloat = 0
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -80,7 +82,8 @@ struct ExploreView: View {
         NavigationStack {
             map
                 .overlay(alignment: .bottom) { nearbyStrip }
-                .overlay(alignment: .topTrailing) { lookButton }
+                .overlay(alignment: .topTrailing) { mapControlsCluster }
+                .overlay(alignment: .leading) { dismissEdge }
                 .overlay(alignment: .topLeading) { closeButton }
                 .navigationDestination(item: $selected) { target in
                     switch target {
@@ -105,6 +108,7 @@ struct ExploreView: View {
                     LocationActionView(coordinate: pin.coordinate)
                 }
         }
+        .offset(x: dismissDrag)
     }
 
     // MARK: Map
@@ -117,7 +121,7 @@ struct ExploreView: View {
                     Marker(person.name,
                            systemImage: person.interest.symbol,
                            coordinate: person.coordinate!)
-                        .tint(person.isDue ? .red : .blue)
+                        .tint(person.isDue ? .red : person.theme.color)
                         .tag(MapTarget.person(person))
                 }
                 ForEach(locatedTerritories) { territory in
@@ -163,23 +167,65 @@ struct ExploreView: View {
 
     // MARK: Look chooser
 
-    /// A floating circular control (like Maps' look button) that opens the style chooser.
-    /// Shows the active look's glyph so the button reflects the current map style.
-    private var lookButton: some View {
-        Button { showLookChooser = true } label: {
-            Image(systemName: mapLook.symbol)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 44, height: 44)
-                .background(.regularMaterial, in: Circle())
-                .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+    /// The right-side control cluster (Apple Maps style): the map-style chooser plus a "show
+    /// everything" button, sitting just below the system map controls.
+    private var mapControlsCluster: some View {
+        VStack(spacing: 12) {
+            Button { showLookChooser = true } label: { controlGlyph(mapLook.symbol) }
+                .popover(isPresented: $showLookChooser) {
+                    lookChooser.presentationCompactAdaptation(.popover)
+                }
+                .accessibilityLabel("Map style")
+            Button { frameAll() } label: { controlGlyph("scope") }
+                .accessibilityLabel("Show everything")
         }
-        // On the right, below the system controls — the Apple Maps map-style spot.
         .padding(.trailing, 12)
         .padding(.top, 96)
-        .popover(isPresented: $showLookChooser) {
-            lookChooser.presentationCompactAdaptation(.popover)
+    }
+
+    private func controlGlyph(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.primary)
+            .frame(width: 44, height: 44)
+            .background(.regularMaterial, in: Circle())
+            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+    }
+
+    /// Re-frame the camera to show everyone (the opening overview).
+    private func frameAll() {
+        Task {
+            if let region = await defaultRegion() {
+                withAnimation(.easeInOut) { camera = .region(region) }
+            }
         }
+    }
+
+    /// A thin invisible strip down the left edge; a rightward drag here dismisses the full-screen
+    /// map, following your finger and snapping back if you don't pull far enough.
+    @ViewBuilder
+    private var dismissEdge: some View {
+        if onClose != nil {
+            Color.clear
+                .frame(width: 24)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(edgeDismissGesture)
+        }
+    }
+
+    private var edgeDismissGesture: some Gesture {
+        DragGesture(minimumDistance: 12)
+            .onChanged { value in
+                dismissDrag = max(0, value.translation.width)
+            }
+            .onEnded { value in
+                if value.translation.width > 100 {
+                    onClose?()
+                } else {
+                    withAnimation(.spring) { dismissDrag = 0 }
+                }
+            }
     }
 
     /// Dismiss control, shown only when this map is presented full-screen (from the People tab).
