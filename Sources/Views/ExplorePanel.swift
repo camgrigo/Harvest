@@ -53,8 +53,6 @@ struct PeoplePanelContent: View {
     @StateObject private var locator = CurrentLocationProvider()
     @State private var search = ""
     @State private var sort: SortMode = .recent
-    /// List vs. image-forward masonry grid for the feed body — toggled from the sort menu, sticky.
-    @AppStorage("explore.gridLayout") private var gridLayout = false
     @State private var showTerritories = true
     @State private var userLocation: CLLocation?
     @State private var addingTerritory = false
@@ -154,13 +152,11 @@ struct PeoplePanelContent: View {
             Group {
                 if feed.isEmpty && !addingTerritory {
                     emptyState
-                } else if gridLayout {
-                    masonryFeed
                 } else {
-                    feedList
+                    masonryFeed
                 }
             }
-            // Inline search + sort + territory toggle, pinned above the list.
+            // Inline search + sort + territory toggle, pinned above the feed.
             .safeAreaInset(edge: .top, spacing: 0) { controlBar }
             // Tap-to-chat with the notebook, pinned to the bottom of the panel.
             .safeAreaInset(edge: .bottom) { notebookComposer }
@@ -277,86 +273,7 @@ struct PeoplePanelContent: View {
         .background(.bar)
     }
 
-    // MARK: List
-
-    private var feedList: some View {
-        List {
-            if addingTerritory {
-                AddTerritoryInline(
-                    onCreated: { territory in
-                        addingTerritory = false
-                        selected = .territory(territory)
-                    },
-                    onCancel: { addingTerritory = false }
-                )
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-            }
-            if sort == .name {
-                // Sorting by name splits the feed into People / Territories sections.
-                let ppl = filteredPeople.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                let trs = filteredTerritories.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-                if !ppl.isEmpty {
-                    Section("People") {
-                        ForEach(ppl) { styledRow(for: .person($0)) }
-                    }
-                }
-                if !trs.isEmpty {
-                    Section("Territories") {
-                        ForEach(trs) { styledRow(for: .territory($0)) }
-                    }
-                }
-            } else {
-                ForEach(feed) { styledRow(for: $0) }
-            }
-        }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-    }
-
-    private func styledRow(for item: FeedItem) -> some View {
-        row(for: item)
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-    }
-
-    @ViewBuilder
-    private func row(for item: FeedItem) -> some View {
-        switch item {
-        case .person(let person):
-            Button {
-                selected = .person(person)
-            } label: {
-                PersonCard(person: person, distanceText: distanceText(for: person.coordinate))
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive) {
-                    personToDelete = person
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        case .territory(let territory):
-            Button {
-                selected = .territory(territory)
-            } label: {
-                TerritoryCard(territory: territory, distanceText: distanceText(for: territory.coordinate))
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive) {
-                    territoryToDelete = territory
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        }
-    }
-
-    // MARK: Grid (masonry)
+    // MARK: Feed (masonry)
 
     /// Two-column, image-forward masonry. Items are packed greedily into whichever column is
     /// currently shorter (by estimated height), giving the staggered look without measuring.
@@ -428,15 +345,17 @@ struct PeoplePanelContent: View {
     private func estimatedHeight(_ item: FeedItem) -> CGFloat {
         switch item {
         case .person(let p):
-            var h: CGFloat = 70                      // padding + name
-            if p.coordinate != nil { h += heroHeight(for: p) }
+            // Photo cards: the image fills the card, so height ≈ the hero height.
+            if p.coordinate != nil { return heroHeight(for: p) }
+            // Text-only cards: name + headline + due.
+            var h: CGFloat = 70
             if !p.headline.isEmpty {
-                h += min((CGFloat(p.headline.count) / 22).rounded(.up), 3) * 18
+                h += min((CGFloat(p.headline.count) / 22).rounded(.up), 5) * 18
             }
             if p.nextVisitDate != nil { h += 18 }
             return h
         case .territory:
-            return 96 + 78                           // tile + text block
+            return 120                               // compact text tile
         }
     }
 
@@ -477,23 +396,17 @@ struct PeoplePanelContent: View {
             .glassEffect(in: Capsule())
 
             Menu {
-                Picker("Layout", selection: $gridLayout) {
-                    Label("List", systemImage: "list.bullet").tag(false)
-                    Label("Grid", systemImage: "square.grid.2x2").tag(true)
-                }
-                .pickerStyle(.inline)
                 Picker("Sort by", selection: $sort) {
                     ForEach(SortMode.allCases) { mode in
                         Label(mode.label, systemImage: mode.symbol).tag(mode)
                     }
                 }
-                .pickerStyle(.inline)
             } label: {
                 Image(systemName: "arrow.up.arrow.down")
                     .frame(width: 40, height: 40)
                     .glassEffect(in: Circle())
             }
-            .accessibilityLabel("Sort and layout")
+            .accessibilityLabel("Sort")
 
             Button {
                 withAnimation { showTerritories.toggle() }

@@ -17,9 +17,9 @@ enum LookAroundCache {
     }
 }
 
-/// A square Look Around still for a coordinate, loaded lazily and cached. The leading edge fades
-/// to transparency (only when an image is present) so it blends into the glass row; an optional
-/// distance badge sits bottom-trailing.
+/// A square Look Around still for a coordinate, loaded lazily and cached. An optional distance
+/// badge sits bottom-trailing. `feather` fades the leading edge (used by the old side thumbnail);
+/// the feed's hero images turn it off.
 struct RowLookAround: View {
     let coordinate: CLLocationCoordinate2D
     var distanceText: String? = nil
@@ -58,7 +58,7 @@ struct RowLookAround: View {
                             .padding(8)
                     }
                 } else {
-                    Color.clear
+                    Rectangle().fill(.quaternary)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -99,7 +99,7 @@ struct RowLookAround: View {
 
 // MARK: - Shared card text
 
-/// Short "due" label for a person's next-visit date, shared by the list + grid cards.
+/// Short "due" label for a person's next-visit date, shared by the feed cards.
 func personDueText(_ person: Person) -> String? {
     guard let date = person.nextVisitDate else { return nil }
     let calendar = Calendar.current
@@ -118,7 +118,7 @@ func personDueText(_ person: Person) -> String? {
     }
 }
 
-/// Door-count + "last worked" subtitle for a territory, shared by the list + grid cards.
+/// Door-count + "last worked" subtitle for a territory, shared by the feed cards.
 func territorySubtitle(_ territory: Territory) -> String {
     let n = territory.doorCount
     let doors = n == 1 ? "1 not-at-home" : "\(n) not-at-homes"
@@ -128,232 +128,135 @@ func territorySubtitle(_ territory: Territory) -> String {
     return n == 0 ? "No not-at-homes yet" : doors
 }
 
-// MARK: - Person card
+// MARK: - Card surface
 
-/// A scannable card for one person: a square Look Around still (with distance badge overlaid),
-/// the name with a small status icon after it, a headline, and the reminder date at the bottom.
-struct PersonCard: View {
-    let person: Person
-    let distanceText: String?
-
-    private static let thumbWidth: CGFloat = 116
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(person.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .accessibilityIdentifier("personRow.name")
-                    if person.interest != .interested {
-                        Image(systemName: person.interest.symbol)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .accessibilityLabel(person.interest.label)
-                    }
-                    Spacer(minLength: 0)
-                }
-                if !person.headline.isEmpty {
-                    Text(person.headline)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                }
-                if let due = personDueText(person) {
-                    Text(due)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(person.isDue ? .red : .secondary)
-                }
-            }
-            .padding(12)
+private extension View {
+    /// The opaque, softly shadowed card surface shared by the Explore feed cards — modeled on the
+    /// iOS 26 Siri/Notes masonry: a solid rounded tile that lifts off the sheet with a gentle shadow.
+    func feedCardSurface() -> some View {
+        self
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            if let coordinate = person.coordinate {
-                thumbnail(coordinate)
-            }
-        }
-        .frame(minHeight: 96)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-    }
-
-    private func thumbnail(_ coordinate: CLLocationCoordinate2D) -> some View {
-        RowLookAround(coordinate: coordinate, distanceText: distanceText)
-            .frame(width: Self.thumbWidth)
-            .frame(maxHeight: .infinity)
-            .accessibilityHidden(true)
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+            )
+            .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
     }
 }
 
-// MARK: - Territory card
+// MARK: - Feed cards (masonry)
 
-/// A scannable card for one territory: name with the territory glyph, a door count + "last worked"
-/// subtitle, and a trailing glass tile (sized to match a person's thumbnail) with the distance
-/// badge overlaid.
-struct TerritoryCard: View {
-    let territory: Territory
-    let distanceText: String?
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(territory.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Image("Territory")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 15, height: 15)
-                        .foregroundStyle(.primary)
-                        .accessibilityHidden(true)
-                    Spacer(minLength: 0)
-                }
-                Text(territorySubtitle(territory))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            tile
-        }
-        .padding(12)
-        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var tile: some View {
-        ZStack(alignment: .bottomTrailing) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(.tint.opacity(0.15))
-                .frame(width: 84, height: 84)
-                .overlay {
-                    Image("Territory")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                        .foregroundStyle(.tint)
-                        .accessibilityHidden(true)
-                }
-            if let distanceText {
-                Text(distanceText)
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(.regularMaterial, in: Capsule())
-                    .padding(5)
-            }
-        }
-    }
-}
-
-// MARK: - Grid (masonry) cards
-
-/// Image-forward person card for the masonry grid: a Look Around hero on top (its height varies
-/// per card to create the staggered look), then the name, headline, and due line below.
+/// A person card for the Explore masonry: a small status label, the name as a bold title, the
+/// headline as a preview, and — when the visit is placed — a Look Around hero photo.
 struct PersonGridCard: View {
     let person: Person
     let distanceText: String?
     let heroHeight: CGFloat
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if let coordinate = person.coordinate {
-                RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
-                    .frame(height: heroHeight)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-            }
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(person.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    if person.interest != .interested {
-                        Image(systemName: person.interest.symbol)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .accessibilityLabel(person.interest.label)
+        if let coordinate = person.coordinate {
+            // Located visit: the Look Around photo fills the whole card; text layers on top over a
+            // top-down scrim that keeps it legible.
+            content(onImage: true)
+                .padding(14)
+                .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .topLeading)
+                .background {
+                    ZStack {
+                        RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
+                        LinearGradient(
+                            stops: [
+                                .init(color: .black.opacity(0.62), location: 0),
+                                .init(color: .black.opacity(0.20), location: 0.5),
+                                .init(color: .clear, location: 0.9),
+                            ],
+                            startPoint: .top, endPoint: .bottom
+                        )
                     }
-                    Spacer(minLength: 0)
                 }
-                if !person.headline.isEmpty {
-                    Text(person.headline)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                }
-                if let due = personDueText(person) {
-                    Text(due)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(person.isDue ? .red : .secondary)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+        } else {
+            // No photo: a solid text tile.
+            content(onImage: false)
+                .feedCardSurface()
         }
-        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    @ViewBuilder
+    private func content(onImage: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let label = topLabel {
+                Text(label.text)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
+                                             : label.color)
+            }
+            Text(person.name)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(onImage ? Color.white : Color.primary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("personRow.name")
+            if !person.headline.isEmpty {
+                Text(person.headline)
+                    .font(.subheadline)
+                    .foregroundStyle(onImage ? Color.white.opacity(0.92) : Color.secondary)
+                    .lineLimit(onImage ? 2 : 5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Top meta line: the due date (red when due/overdue) or, failing that, the interest status.
+    private var topLabel: (text: String, color: Color)? {
+        if let due = personDueText(person) {
+            return (due, person.isDue ? .red : .secondary)
+        }
+        if person.interest != .interested {
+            return (person.interest.label, .secondary)
+        }
+        return nil
     }
 }
 
-/// Image-forward territory card for the masonry grid: a tinted glyph tile on top, then the name
-/// and the door-count subtitle.
+/// A territory card for the Explore masonry: an accent "Territory" label (territories have no
+/// photo), the name as a bold title, and the door-count subtitle as a preview.
 struct TerritoryGridCard: View {
     let territory: Territory
     let distanceText: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .bottomTrailing) {
-                Rectangle()
-                    .fill(.tint.opacity(0.15))
-                    .frame(height: 96)
-                    .frame(maxWidth: .infinity)
-                    .overlay {
-                        Image("Territory")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 40, height: 40)
-                            .foregroundStyle(.tint)
-                            .accessibilityHidden(true)
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 4) {
+                Image("Territory")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 13, height: 13)
+                    .accessibilityHidden(true)
+                Text("Territory")
+                Spacer(minLength: 0)
                 if let distanceText {
-                    Text(distanceText)
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(.regularMaterial, in: Capsule())
-                        .padding(8)
+                    Text(distanceText).foregroundStyle(.secondary)
                 }
             }
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(territory.name)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Image("Territory")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 15, height: 15)
-                        .foregroundStyle(.primary)
-                        .accessibilityHidden(true)
-                    Spacer(minLength: 0)
-                }
-                Text(territorySubtitle(territory))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.tint)
+
+            Text(territory.name)
+                .font(.title3.weight(.bold))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(territorySubtitle(territory))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .feedCardSurface()
     }
 }
