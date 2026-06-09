@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Scheme
-   LastUpgradeVersion = "1430"
-   version = "1.7">
+   LastUpgradeVersion = "2700"
+   version = "1.3">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES"
-      runPostActionsOnFailure = "NO">
+      buildImplicitDependencies = "YES">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -15,10 +14,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "CD47E44E0096374C41315C20"
-               BuildableName = "ReturnVisitNotebook.app"
-               BlueprintName = "ReturnVisitNotebook"
-               ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+               BlueprintIdentifier = "B8F6FB3B2C632729B0929F7D"
+               BuildableName = "Harvest.app"
+               BlueprintName = "Harvest"
+               ReferencedContainer = "container:Harvest.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -27,15 +26,14 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      onlyGenerateCoverageForSpecifiedTargets = "NO">
+      shouldUseLaunchSchemeArgsEnv = "YES">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CD47E44E0096374C41315C20"
-            BuildableName = "ReturnVisitNotebook.app"
-            BlueprintName = "ReturnVisitNotebook"
-            ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+            BlueprintIdentifier = "B8F6FB3B2C632729B0929F7D"
+            BuildableName = "Harvest.app"
+            BlueprintName = "Harvest"
+            ReferencedContainer = "container:Harvest.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
@@ -44,26 +42,23 @@
             parallelizable = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "3CE5B3087BA38BC5F14B1910"
-               BuildableName = "ReturnVisitNotebookTests.xctest"
-               BlueprintName = "ReturnVisitNotebookTests"
-               ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+               BlueprintIdentifier = "A703831DEF4A3C68144E4315"
+               BuildableName = "HarvestTests.xctest"
+               BlueprintName = "HarvestTests"
+               ReferencedContainer = "container:Harvest.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
+            skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "4CB58F6AEC4660EF4873A0A9"
-               BuildableName = "ReturnVisitNotebookUITests.xctest"
-               BlueprintName = "ReturnVisitNotebookUITests"
-               ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+               BlueprintIdentifier = "1D35F899AEEE1699BAC053BF"
+               BuildableName = "HarvestUITests.xctest"
+               BlueprintName = "HarvestUITests"
+               ReferencedContainer = "container:Harvest.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -79,10 +74,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CD47E44E0096374C41315C20"
-            BuildableName = "ReturnVisitNotebook.app"
-            BlueprintName = "ReturnVisitNotebook"
-            ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+            BlueprintIdentifier = "B8F6FB3B2C632729B0929F7D"
+            BuildableName = "Harvest.app"
+            BlueprintName = "Harvest"
+            ReferencedContainer = "container:Harvest.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -96,10 +91,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "CD47E44E0096374C41315C20"
-            BuildableName = "ReturnVisitNotebook.app"
-            BlueprintName = "ReturnVisitNotebook"
-            ReferencedContainer = "container:ReturnVisitNotebook.xcodeproj">
+            BlueprintIdentifier = "B8F6FB3B2C632729B0929F7D"
+            BuildableName = "Harvest.app"
+            BlueprintName = "Harvest"
+            ReferencedContainer = "container:Harvest.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

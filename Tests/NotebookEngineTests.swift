@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the data engine against an in-memory store: person matching, due filtering, and the
 /// apply pipeline that turns a parsed message into saved records.

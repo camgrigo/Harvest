@@ -1,6 +1,6 @@
 import XCTest
 import CoreGraphics
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the greedy two-column packing that drives the Explore feed's masonry (Grid) layout:
 /// each item lands in whichever column is currently shorter, and order is preserved per column.

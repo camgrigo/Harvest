@@ -1,4 +1,4 @@
-name: ReturnVisitNotebook
+name: Harvest
 options:
   bundleIdPrefix: com.camgrigo
   deploymentTarget:
@@ -12,7 +12,7 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_STRICT_CONCURRENCY: complete
 targets:
-  ReturnVisitNotebook:
+  Harvest:
     type: application
     platform: iOS
     sources:
@@ -38,6 +38,8 @@ targets:
           Adds your service plans to Apple Calendar when you ask.
     settings:
       base:
+        # Kept as the original identifier so the installed app, its on-device data,
+        # and keychain items survive the rename to "Harvest".
         PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebook
         TARGETED_DEVICE_FAMILY: "1"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
@@ -46,36 +48,36 @@ targets:
         CODE_SIGN_IDENTITY: "Apple Development"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
-  ReturnVisitNotebookTests:
+  HarvestTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - Tests
     dependencies:
-      - target: ReturnVisitNotebook
+      - target: Harvest
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebookTests
+        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.HarvestTests
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1"
-  ReturnVisitNotebookUITests:
+  HarvestUITests:
     type: bundle.ui-testing
     platform: iOS
     sources:
       - UITests
     dependencies:
-      - target: ReturnVisitNotebook
+      - target: Harvest
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.ReturnVisitNotebookUITests
+        PRODUCT_BUNDLE_IDENTIFIER: com.camgrigo.HarvestUITests
         GENERATE_INFOPLIST_FILE: YES
         TARGETED_DEVICE_FAMILY: "1"
 schemes:
-  ReturnVisitNotebook:
+  Harvest:
     build:
       targets:
-        ReturnVisitNotebook: all
+        Harvest: all
     test:
       targets:
-        - ReturnVisitNotebookTests
-        - ReturnVisitNotebookUITests
+        - HarvestTests
+        - HarvestUITests

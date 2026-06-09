@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests promoting a not-at-home into a return visit (Person), and the address-normalisation used
 /// for de-duping doors and suggestions.

@@ -1,5 +1,5 @@
 import XCTest
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the "best time to return" hint logic: time-of-day buckets, the fewest-tried suggestion,
 /// and the four phrasing cases (single attempt, always-same-bucket, gap, no-gap). Uses a fixed

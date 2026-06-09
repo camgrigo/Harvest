@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests how the single message store is split into threads (general notebook vs. each person)
 /// and how clearing a conversation hides messages without deleting them.

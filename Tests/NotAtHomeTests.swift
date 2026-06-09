@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the simple not-at-home list model: a new door starts at one attempt, and "tried again"
 /// bumps the count and the last-tried time.

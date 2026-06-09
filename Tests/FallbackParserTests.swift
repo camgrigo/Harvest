@@ -1,5 +1,5 @@
 import XCTest
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the offline heuristic parser — the deterministic brain used when the on-device model
 /// isn't available. Dates are checked relative to "today" so the suite never goes stale.

@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct ReturnVisitNotebookApp: App {
+struct HarvestApp: App {
     let container: ModelContainer
     @StateObject private var notifications = NotificationCoordinator()
 

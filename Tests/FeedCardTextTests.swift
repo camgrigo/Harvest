@@ -1,6 +1,6 @@
 import XCTest
 import SwiftData
-@testable import ReturnVisitNotebook
+@testable import Harvest
 
 /// Tests the shared card text helpers used by both the list rows and the masonry grid cards:
 /// the person "due" label (today / tomorrow / in Nd / overdue / far-future date) and the
