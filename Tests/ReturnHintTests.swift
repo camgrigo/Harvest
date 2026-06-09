@@ -63,4 +63,23 @@ final class ReturnHintTests: XCTestCase {
         XCTAssertEqual(hint.text, "Always tried nights — try evening")
         XCTAssertNotEqual(hint.symbol, "moon")
     }
+
+    // MARK: Aggregate not-at-home advice (Calendar tab)
+
+    func testAdviceSuggestsTheMostUntriedDaypart() {
+        // Two doors, both only knocked in the morning -> evening is the biggest opportunity.
+        let advice = NotAtHomeAdvice(doors: [[at(9)], [at(10)]], calendar: cal)
+        XCTAssertEqual(advice?.bucket, .evening)
+        XCTAssertEqual(advice?.doorsToTry, 2)
+        XCTAssertEqual(advice?.totalDoors, 2)
+    }
+
+    func testAdviceIsNilWithNoDoors() {
+        XCTAssertNil(NotAtHomeAdvice(doors: [], calendar: cal))
+        XCTAssertNil(NotAtHomeAdvice(doors: [[]], calendar: cal))
+    }
+
+    func testAdviceIsNilWhenEveryDaypartCovered() {
+        XCTAssertNil(NotAtHomeAdvice(doors: [[at(9), at(14), at(19)]], calendar: cal))
+    }
 }

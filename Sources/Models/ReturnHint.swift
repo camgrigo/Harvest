@@ -39,6 +39,52 @@ enum TimeBucket: Int, CaseIterable, Sendable {
         case .night: "sunset"
         }
     }
+
+    /// A representative hour to pre-seed a planned session for this part of the day.
+    var planHour: Int {
+        switch self {
+        case .morning: 9
+        case .afternoon: 14
+        case .evening: 18
+        case .night: 18
+        }
+    }
+}
+
+/// Aggregates many doors' knock histories into one "best time to work not-at-homes" suggestion for
+/// the Calendar tab: the daytime bucket (evening → afternoon → morning on ties) the most doors have
+/// NOT yet been knocked in. `nil` when there are no doors or every door already covers all dayparts.
+/// Pure + calendar-injected for testing.
+struct NotAtHomeAdvice: Equatable {
+    let bucket: TimeBucket
+    /// Doors not yet tried in `bucket` — the opportunity.
+    let doorsToTry: Int
+    let totalDoors: Int
+
+    init?(doors attemptTimesPerDoor: [[Date]], calendar: Calendar = .current) {
+        let doors = attemptTimesPerDoor.filter { !$0.isEmpty }
+        guard !doors.isEmpty else { return nil }
+
+        func untried(_ bucket: TimeBucket) -> Int {
+            doors.filter { times in
+                !times.contains { TimeBucket.of($0, calendar: calendar) == bucket }
+            }.count
+        }
+
+        // Prefer evening, then afternoon, then morning on ties (start at evening, switch only on >).
+        let daytime: [TimeBucket] = [.evening, .afternoon, .morning]
+        var best = daytime[0]
+        var bestCount = untried(best)
+        for candidate in daytime.dropFirst() {
+            let count = untried(candidate)
+            if count > bestCount { best = candidate; bestCount = count }
+        }
+        guard bestCount > 0 else { return nil }
+
+        bucket = best
+        doorsToTry = bestCount
+        totalDoors = doors.count
+    }
 }
 
 /// A small value type that turns a door's knock history into a "try a different time" suggestion.

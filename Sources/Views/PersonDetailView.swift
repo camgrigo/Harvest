@@ -44,6 +44,7 @@ struct PersonDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
+                    .accessibilityLabel("Share \(person.name)")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(isEditing ? "Done" : "Edit") {

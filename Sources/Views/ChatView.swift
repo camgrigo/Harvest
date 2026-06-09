@@ -149,6 +149,7 @@ struct ConversationView: View {
                             .padding(10)
                             .background(.regularMaterial, in: Circle())
                     }
+                    .accessibilityLabel("Scroll to latest")
                     .padding(.trailing, 16)
                     .padding(.bottom, 8)
                     .transition(.scale.combined(with: .opacity))
@@ -292,6 +293,7 @@ struct ConversationView: View {
                     .font(.system(size: 30))
             }
             .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Send")
         }
     }
 

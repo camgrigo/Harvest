@@ -239,11 +239,24 @@ struct PersonGridCard: View {
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText)
         } else {
             // No photo: a solid text tile.
             content(onImage: false)
                 .feedCardSurface()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(accessibilityText)
         }
+    }
+
+    /// A clean, single VoiceOver readout for the card: name, status/due, and the gist.
+    private var accessibilityText: String {
+        var parts = [person.name]
+        if let due = personDueText(person) { parts.append(due) }
+        else if person.interest != .interested { parts.append(person.interest.label) }
+        if !person.headline.isEmpty { parts.append(person.headline) }
+        return parts.joined(separator: ", ")
     }
 
     @ViewBuilder
@@ -329,5 +342,7 @@ struct TerritoryGridCard: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .feedCardSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Territory \(territory.name), \(territorySubtitle(territory))")
     }
 }

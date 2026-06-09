@@ -7,6 +7,7 @@ struct ServicePlansView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ServicePlan.date) private var plans: [ServicePlan]
+    @Query private var doors: [NotAtHome]
 
     @State private var editing: ServicePlan?
     @State private var addingNew = false
@@ -22,6 +23,7 @@ struct ServicePlansView: View {
                     .datePickerStyle(.graphical)
                     .padding(.horizontal)
                     .padding(.bottom, 4)
+                notAtHomeTip
                 Group {
                     if plans.isEmpty {
                         ContentUnavailableView(
@@ -68,6 +70,48 @@ struct ServicePlansView: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// Aggregate "best time to retry not-at-homes" suggestion from every door's knock history.
+    private var notAtHomeAdvice: NotAtHomeAdvice? {
+        NotAtHomeAdvice(doors: doors.map(\.attemptTimes))
+    }
+
+    @ViewBuilder
+    private var notAtHomeTip: some View {
+        if let advice = notAtHomeAdvice {
+            HStack(spacing: 12) {
+                Image(systemName: advice.bucket.symbol)
+                    .font(.title3)
+                    .foregroundStyle(.orange)
+                    .frame(width: 40, height: 40)
+                    .background(Color.orange.opacity(0.15), in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Best time for not-at-homes: \(advice.bucket.single.capitalized)")
+                        .font(.subheadline.weight(.semibold))
+                    Text("\(advice.doorsToTry) of \(advice.totalDoors) door\(advice.totalDoors == 1 ? "" : "s") not knocked then")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+                Button("Plan") { planNotAtHomeSession(advice) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            .padding(12)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal)
+            .padding(.bottom, 6)
+        }
+    }
+
+    /// Open a new plan pre-seeded to the suggested part of the selected day.
+    private func planNotAtHomeSession(_ advice: NotAtHomeAdvice) {
+        let cal = Calendar.current
+        selectedDate = cal.date(bySettingHour: advice.bucket.planHour, minute: 0, second: 0,
+                                of: selectedDate) ?? selectedDate
+        addingNew = true
     }
 
     private func planRow(_ plan: ServicePlan) -> some View {
