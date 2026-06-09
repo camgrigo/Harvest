@@ -53,6 +53,8 @@ struct PeoplePanelContent: View {
     @StateObject private var locator = CurrentLocationProvider()
     @State private var search = ""
     @State private var sort: SortMode = .recent
+    /// List vs. image-forward masonry grid for the feed body — toggled from the sort menu, sticky.
+    @AppStorage("explore.gridLayout") private var gridLayout = false
     @State private var showTerritories = true
     @State private var userLocation: CLLocation?
     @State private var addingTerritory = false
@@ -152,6 +154,8 @@ struct PeoplePanelContent: View {
             Group {
                 if feed.isEmpty && !addingTerritory {
                     emptyState
+                } else if gridLayout {
+                    masonryFeed
                 } else {
                     feedList
                 }
@@ -352,6 +356,96 @@ struct PeoplePanelContent: View {
         }
     }
 
+    // MARK: Grid (masonry)
+
+    /// Two-column, image-forward masonry. Items are packed greedily into whichever column is
+    /// currently shorter (by estimated height), giving the staggered look without measuring.
+    private var masonryFeed: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if addingTerritory {
+                    AddTerritoryInline(
+                        onCreated: { territory in
+                            addingTerritory = false
+                            selected = .territory(territory)
+                        },
+                        onCancel: { addingTerritory = false }
+                    )
+                }
+                let columns = balanceIntoColumns(feed, height: estimatedHeight)
+                HStack(alignment: .top, spacing: 12) {
+                    masonryColumn(columns.left)
+                    masonryColumn(columns.right)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+            .padding(.bottom, 10)
+        }
+    }
+
+    private func masonryColumn(_ items: [FeedItem]) -> some View {
+        LazyVStack(spacing: 12) {
+            ForEach(items) { gridCard(for: $0) }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    @ViewBuilder
+    private func gridCard(for item: FeedItem) -> some View {
+        switch item {
+        case .person(let person):
+            Button {
+                selected = .person(person)
+            } label: {
+                PersonGridCard(person: person,
+                               distanceText: distanceText(for: person.coordinate),
+                               heroHeight: heroHeight(for: person))
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button(role: .destructive) { personToDelete = person } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        case .territory(let territory):
+            Button {
+                selected = .territory(territory)
+            } label: {
+                TerritoryGridCard(territory: territory,
+                                  distanceText: distanceText(for: territory.coordinate))
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button(role: .destructive) { territoryToDelete = territory } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+            }
+        }
+    }
+
+    /// A rough card height, used only to balance the two columns (never for actual layout).
+    private func estimatedHeight(_ item: FeedItem) -> CGFloat {
+        switch item {
+        case .person(let p):
+            var h: CGFloat = 70                      // padding + name
+            if p.coordinate != nil { h += heroHeight(for: p) }
+            if !p.headline.isEmpty {
+                h += min((CGFloat(p.headline.count) / 22).rounded(.up), 3) * 18
+            }
+            if p.nextVisitDate != nil { h += 18 }
+            return h
+        case .territory:
+            return 96 + 78                           // tile + text block
+        }
+    }
+
+    /// Deterministic hero height per person so the stagger stays stable across launches.
+    private func heroHeight(for person: Person) -> CGFloat {
+        let options: [CGFloat] = [120, 146, 172]
+        return options[Int(person.id.uuid.0) % 3]
+    }
+
     private var emptyState: some View {
         ContentUnavailableView(
             allEmpty ? "Nothing yet" : "No matches",
@@ -383,17 +477,23 @@ struct PeoplePanelContent: View {
             .glassEffect(in: Capsule())
 
             Menu {
+                Picker("Layout", selection: $gridLayout) {
+                    Label("List", systemImage: "list.bullet").tag(false)
+                    Label("Grid", systemImage: "square.grid.2x2").tag(true)
+                }
+                .pickerStyle(.inline)
                 Picker("Sort by", selection: $sort) {
                     ForEach(SortMode.allCases) { mode in
                         Label(mode.label, systemImage: mode.symbol).tag(mode)
                     }
                 }
+                .pickerStyle(.inline)
             } label: {
                 Image(systemName: "arrow.up.arrow.down")
                     .frame(width: 40, height: 40)
                     .glassEffect(in: Circle())
             }
-            .accessibilityLabel("Sort")
+            .accessibilityLabel("Sort and layout")
 
             Button {
                 withAnimation { showTerritories.toggle() }
@@ -443,4 +543,20 @@ struct PeoplePanelContent: View {
         context.delete(territory)
         context.saveIfPossible()
     }
+}
+
+/// Greedy two-column packing for the masonry feed: each item is appended to whichever column is
+/// currently shorter by accumulated height. Order within each column is preserved. Pure and
+/// generic so it can be unit-tested without a view.
+func balanceIntoColumns<T>(_ items: [T], height: (T) -> CGFloat) -> (left: [T], right: [T]) {
+    var left: [T] = [], right: [T] = []
+    var leftHeight: CGFloat = 0, rightHeight: CGFloat = 0
+    for item in items {
+        if leftHeight <= rightHeight {
+            left.append(item); leftHeight += height(item)
+        } else {
+            right.append(item); rightHeight += height(item)
+        }
+    }
+    return (left, right)
 }

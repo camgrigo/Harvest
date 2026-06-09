@@ -514,7 +514,8 @@ struct TerritoryDetailView: View {
 
     private func openDirections() {
         guard let c = territory.coordinate else { return }
-        let item = MKMapItem(placemark: MKPlacemark(coordinate: c))
+        let item = MKMapItem(location: CLLocation(latitude: c.latitude, longitude: c.longitude),
+                             address: nil)
         item.name = territory.name
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
     }

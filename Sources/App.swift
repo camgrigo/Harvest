@@ -8,16 +8,9 @@ struct ReturnVisitNotebookApp: App {
 
     init() {
         // UI tests pass "-uitesting" so each launch starts from a clean, ephemeral store.
+        // Normal launches share one container with the App Intents (Siri / Shortcuts).
         let uiTesting = ProcessInfo.processInfo.arguments.contains("-uitesting")
-        do {
-            container = try ModelContainer(
-                for: Person.self, JournalEntry.self, ChatMessage.self,
-                     NotAtHome.self, Territory.self, DoNotCall.self, ServicePlan.self,
-                configurations: ModelConfiguration(isStoredInMemoryOnly: uiTesting)
-            )
-        } catch {
-            fatalError("Failed to create the notebook's storage: \(error)")
-        }
+        container = uiTesting ? AppModelContainer.make(inMemory: true) : AppModelContainer.shared
     }
 
     var body: some Scene {

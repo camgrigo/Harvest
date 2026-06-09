@@ -40,7 +40,7 @@ enum TextRecognizer {
         request.usesLanguageCorrection = true
         let handler = VNImageRequestHandler(cgImage: cg, orientation: orientation, options: [:])
         do { try handler.perform([request]) } catch { return [] }
-        return (request.results as? [VNRecognizedTextObservation])?
+        return request.results?
             .compactMap { $0.topCandidates(1).first?.string } ?? []
     }
 

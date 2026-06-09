@@ -23,6 +23,8 @@ enum LookAroundCache {
 struct RowLookAround: View {
     let coordinate: CLLocationCoordinate2D
     var distanceText: String? = nil
+    /// Leading edge fades to transparent so the still blends into a glass row. Off for hero images.
+    var feather: Bool = true
 
     @State private var image: UIImage?
     @State private var didLoad = false
@@ -38,10 +40,11 @@ struct RowLookAround: View {
                         .clipped()
                         .mask(
                             LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0),
-                                    .init(color: .black, location: 0.16),
-                                ],
+                                stops: feather
+                                    ? [.init(color: .clear, location: 0),
+                                       .init(color: .black, location: 0.16)]
+                                    : [.init(color: .black, location: 0),
+                                       .init(color: .black, location: 1)],
                                 startPoint: .leading, endPoint: .trailing
                             )
                         )
@@ -94,6 +97,37 @@ struct RowLookAround: View {
     }
 }
 
+// MARK: - Shared card text
+
+/// Short "due" label for a person's next-visit date, shared by the list + grid cards.
+func personDueText(_ person: Person) -> String? {
+    guard let date = person.nextVisitDate else { return nil }
+    let calendar = Calendar.current
+    let days = calendar.dateComponents(
+        [.day],
+        from: calendar.startOfDay(for: .now),
+        to: calendar.startOfDay(for: date)
+    ).day ?? 0
+
+    switch days {
+    case 0:      return "Due today"
+    case ..<0:   return days == -1 ? "Overdue 1d" : "Overdue \(-days)d"
+    case 1:      return "Tomorrow"
+    case 2...14: return "in \(days)d"
+    default:     return date.formatted(.dateTime.month(.abbreviated).day())
+    }
+}
+
+/// Door-count + "last worked" subtitle for a territory, shared by the list + grid cards.
+func territorySubtitle(_ territory: Territory) -> String {
+    let n = territory.doorCount
+    let doors = n == 1 ? "1 not-at-home" : "\(n) not-at-homes"
+    if let worked = territory.lastWorkedAt {
+        return "\(doors) · last worked \(worked.formatted(.dateTime.weekday(.abbreviated)))"
+    }
+    return n == 0 ? "No not-at-homes yet" : doors
+}
+
 // MARK: - Person card
 
 /// A scannable card for one person: a square Look Around still (with distance badge overlaid),
@@ -127,7 +161,7 @@ struct PersonCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
-                if let due = dueText(for: person) {
+                if let due = personDueText(person) {
                     Text(due)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(person.isDue ? .red : .secondary)
@@ -150,24 +184,6 @@ struct PersonCard: View {
             .frame(width: Self.thumbWidth)
             .frame(maxHeight: .infinity)
             .accessibilityHidden(true)
-    }
-
-    private func dueText(for person: Person) -> String? {
-        guard let date = person.nextVisitDate else { return nil }
-        let calendar = Calendar.current
-        let days = calendar.dateComponents(
-            [.day],
-            from: calendar.startOfDay(for: .now),
-            to: calendar.startOfDay(for: date)
-        ).day ?? 0
-
-        switch days {
-        case 0:    return "Due today"
-        case ..<0: return days == -1 ? "Overdue 1d" : "Overdue \(-days)d"
-        case 1:    return "Tomorrow"
-        case 2...14: return "in \(days)d"
-        default:   return date.formatted(.dateTime.month(.abbreviated).day())
-        }
     }
 }
 
@@ -196,7 +212,7 @@ struct TerritoryCard: View {
                         .accessibilityHidden(true)
                     Spacer(minLength: 0)
                 }
-                Text(subtitle)
+                Text(territorySubtitle(territory))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
@@ -205,15 +221,6 @@ struct TerritoryCard: View {
         }
         .padding(12)
         .glassEffect(in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var subtitle: String {
-        let n = territory.doorCount
-        let doors = n == 1 ? "1 not-at-home" : "\(n) not-at-homes"
-        if let worked = territory.lastWorkedAt {
-            return "\(doors) · last worked \(worked.formatted(.dateTime.weekday(.abbreviated)))"
-        }
-        return n == 0 ? "No not-at-homes yet" : doors
     }
 
     private var tile: some View {
@@ -239,5 +246,114 @@ struct TerritoryCard: View {
                     .padding(5)
             }
         }
+    }
+}
+
+// MARK: - Grid (masonry) cards
+
+/// Image-forward person card for the masonry grid: a Look Around hero on top (its height varies
+/// per card to create the staggered look), then the name, headline, and due line below.
+struct PersonGridCard: View {
+    let person: Person
+    let distanceText: String?
+    let heroHeight: CGFloat
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if let coordinate = person.coordinate {
+                RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
+                    .frame(height: heroHeight)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(person.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if person.interest != .interested {
+                        Image(systemName: person.interest.symbol)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .accessibilityLabel(person.interest.label)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if !person.headline.isEmpty {
+                    Text(person.headline)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+                if let due = personDueText(person) {
+                    Text(due)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(person.isDue ? .red : .secondary)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// Image-forward territory card for the masonry grid: a tinted glyph tile on top, then the name
+/// and the door-count subtitle.
+struct TerritoryGridCard: View {
+    let territory: Territory
+    let distanceText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomTrailing) {
+                Rectangle()
+                    .fill(.tint.opacity(0.15))
+                    .frame(height: 96)
+                    .frame(maxWidth: .infinity)
+                    .overlay {
+                        Image("Territory")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .foregroundStyle(.tint)
+                            .accessibilityHidden(true)
+                    }
+                if let distanceText {
+                    Text(distanceText)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(.regularMaterial, in: Capsule())
+                        .padding(8)
+                }
+            }
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(territory.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Image("Territory")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 15, height: 15)
+                        .foregroundStyle(.primary)
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 0)
+                }
+                Text(territorySubtitle(territory))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .glassEffect(in: RoundedRectangle(cornerRadius: 16))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

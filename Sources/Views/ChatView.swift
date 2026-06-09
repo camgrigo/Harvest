@@ -467,7 +467,7 @@ private struct MessageRow: View {
     @ViewBuilder
     private var content: some View {
         if let streamedText {
-            (Text(streamedText) + Text(" ▍").foregroundColor(.secondary))
+            Text("\(streamedText)\(Text(" ▍").foregroundStyle(.secondary))")
                 .textSelection(.enabled)
         } else {
             MarkdownMessage(text: message.text)
