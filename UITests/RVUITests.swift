@@ -180,11 +180,51 @@ final class RVUITests: XCTestCase {
         XCTAssertTrue(waitForReplies(app, count: 2), "Summarize should produce a reply")
     }
 
-    /// The Map tab was removed — the map is reached via a preview on the People tab.
-    func testMapPreviewIsOnPeopleTab() throws {
+    /// The People-tab map preview expands to the full map, and the X brings you back.
+    func testMapPreviewOpensAndCloses() throws {
         let app = launch()
+        let preview = app.buttons["Open full map"]
+        XCTAssertTrue(preview.waitForExistence(timeout: 5), "The People tab shows a map preview")
+        preview.tap()
+        XCTAssertTrue(app.buttons["Show everything"].waitForExistence(timeout: 5),
+                      "Tapping the preview opens the full map with its controls")
+        app.buttons["Close map"].tap()
         XCTAssertTrue(app.buttons["Open full map"].waitForExistence(timeout: 5),
-                      "The People tab shows a tappable map preview")
+                      "Closing returns to the People tab")
+    }
+
+    /// The full map's search control opens a search sheet that can be cancelled.
+    func testMapSearchSheetOpensAndCancels() throws {
+        let app = launch()
+        app.buttons["Open full map"].tap()
+        let search = app.buttons["Search"]
+        XCTAssertTrue(search.waitForExistence(timeout: 5), "The map has a search control")
+        search.tap()
+        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5),
+                      "The map search sheet appears")
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["Show everything"].waitForExistence(timeout: 5),
+                      "Cancelling returns to the map")
+    }
+
+    /// Searching the full map surfaces a matching person.
+    func testMapSearchFindsPerson() throws {
+        let app = launch()
+        openComposer(app)
+        send(app, "Met Maria at 12 Oak Street")
+        XCTAssertTrue(waitForReplies(app))
+        openPeople(app)
+
+        app.buttons["Open full map"].tap()
+        XCTAssertTrue(app.buttons["Search"].waitForExistence(timeout: 5))
+        app.buttons["Search"].tap()
+
+        let field = app.searchFields["Find a person or territory"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "The search field appears")
+        field.tap()
+        field.typeText("Maria")
+        XCTAssertTrue(app.collectionViews.buttons["Maria"].waitForExistence(timeout: 5),
+                      "Search lists the matching person")
     }
 
     /// A filed visit shows up on the People tab, and the tab bar persists across tabs.
