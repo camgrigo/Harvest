@@ -192,11 +192,10 @@ struct PeoplePanelContent: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showPlans) { ServicePlansView() }
-            .confirmationDialog(
+            .alert(
                 "Delete \(personToDelete?.name ?? "")?",
                 isPresented: Binding(get: { personToDelete != nil },
-                                     set: { if !$0 { personToDelete = nil } }),
-                titleVisibility: .visible
+                                     set: { if !$0 { personToDelete = nil } })
             ) {
                 Button("Delete", role: .destructive) {
                     if let p = personToDelete { deleteFromList(p) }
@@ -206,11 +205,10 @@ struct PeoplePanelContent: View {
             } message: {
                 Text("All notes and visit history will be permanently removed.")
             }
-            .confirmationDialog(
+            .alert(
                 "Delete \(territoryToDelete?.name ?? "")?",
                 isPresented: Binding(get: { territoryToDelete != nil },
-                                     set: { if !$0 { territoryToDelete = nil } }),
-                titleVisibility: .visible
+                                     set: { if !$0 { territoryToDelete = nil } })
             ) {
                 Button("Delete", role: .destructive) {
                     if let t = territoryToDelete { deleteTerritoryFromList(t) }
