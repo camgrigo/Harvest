@@ -88,7 +88,7 @@ struct RowLookAround: View {
             return nil
         }
         let options = MKLookAroundSnapshotter.Options()
-        options.size = CGSize(width: 400, height: 400)
+        options.size = CGSize(width: 600, height: 600)
         options.pointOfInterestFilter = .excludingAll
         guard let snapshot = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot else {
             return nil
@@ -167,13 +167,13 @@ struct PersonGridCard: View {
                 .background {
                     ZStack {
                         RowLookAround(coordinate: coordinate, feather: false)
-                        // A strong, fairly even scrim — text can sit anywhere on the card, so keep
-                        // the whole photo dark enough for white text to stay legible on bright shots.
+                        // A top-weighted scrim: dark behind the text up top, fading toward the
+                        // bottom so more of the Look Around photo stays visible on the taller cards.
                         LinearGradient(
                             stops: [
-                                .init(color: .black.opacity(0.82), location: 0),
-                                .init(color: .black.opacity(0.6), location: 0.5),
-                                .init(color: .black.opacity(0.52), location: 1.0),
+                                .init(color: .black.opacity(0.80), location: 0),
+                                .init(color: .black.opacity(0.38), location: 0.45),
+                                .init(color: .black.opacity(0.16), location: 1.0),
                             ],
                             startPoint: .top, endPoint: .bottom
                         )
@@ -217,7 +217,7 @@ struct PersonGridCard: View {
                 Text(person.headline)
                     .font(.subheadline)
                     .foregroundStyle(onImage ? Color.white.opacity(0.92) : Color.secondary)
-                    .lineLimit(onImage ? 2 : 5)
+                    .lineLimit(onImage ? 3 : 5)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

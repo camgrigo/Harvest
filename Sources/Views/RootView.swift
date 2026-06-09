@@ -24,9 +24,6 @@ struct RootView: View {
             Tab("Schedule", systemImage: "calendar") {
                 ServicePlansView()
             }
-            Tab("Settings", systemImage: "gearshape.fill") {
-                SettingsView()
-            }
         }
             .fullScreenCover(isPresented: Binding(
                 get: { !hasOnboarded },

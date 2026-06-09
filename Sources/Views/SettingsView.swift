@@ -79,8 +79,13 @@ struct SettingsView: View {
                     Text("Restoring replaces all current people, territories, and notes with the backup's contents.")
                 }
             }
-            .navigationTitle("Settings")
+            .navigationTitle("Backup & Restore")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             .sheet(item: $shareItem) { item in
                 ShareSheet(items: [item.url])
             }

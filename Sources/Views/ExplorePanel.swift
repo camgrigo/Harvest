@@ -60,6 +60,7 @@ struct PeoplePanelContent: View {
     @State private var showingScan = false
     @State private var showNotebook = false
     @State private var showNewPerson = false
+    @State private var showBackup = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -160,6 +161,16 @@ struct PeoplePanelContent: View {
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationTitle("People")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showBackup = true
+                    } label: {
+                        Image(systemName: "lock.doc")
+                    }
+                    .accessibilityLabel("Backup & Restore")
+                }
+            }
             .navigationDestination(item: $selected) { target in
                 switch target {
                 case .person(let person):
@@ -181,6 +192,9 @@ struct PeoplePanelContent: View {
             }
             .sheet(isPresented: $showNewPerson) {
                 NewPersonView { person in selected = .person(person) }
+            }
+            .sheet(isPresented: $showBackup) {
+                SettingsView()
             }
             .alert(
                 "Delete \(personToDelete?.name ?? "")?",
@@ -345,7 +359,7 @@ struct PeoplePanelContent: View {
 
     /// Deterministic hero height per person so the stagger stays stable across launches.
     private func heroHeight(for person: Person) -> CGFloat {
-        let options: [CGFloat] = [120, 146, 172]
+        let options: [CGFloat] = [200, 250, 300]
         return options[Int(person.id.uuid.0) % 3]
     }
 
