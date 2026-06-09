@@ -71,6 +71,14 @@ struct ExploreView: View {
     var onClose: (() -> Void)? = nil
     /// Live offset while swiping in from the left edge to dismiss the full-screen map.
     @State private var dismissDrag: CGFloat = 0
+    /// The map search sheet (jump to a person/territory by name).
+    @State private var showSearch = false
+    /// Pushes a detail page — kept separate from `selected`, which drives the on-map callout.
+    @State private var openTarget: MapTarget?
+    /// Driving route from you to the selected person: polyline points + ETA, shown on the map and
+    /// in the callout.
+    @State private var routeCoords: [CLLocationCoordinate2D] = []
+    @State private var routeMinutes: Int?
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -81,16 +89,18 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             map
-                .overlay(alignment: .bottom) { nearbyStrip }
+                .overlay(alignment: .bottom) { bottomOverlay }
                 .overlay(alignment: .topTrailing) { mapControlsCluster }
                 .overlay(alignment: .leading) { dismissEdge }
                 .overlay(alignment: .topLeading) { closeButton }
-                .navigationDestination(item: $selected) { target in
+                .animation(.spring(duration: 0.3), value: selected)
+                .navigationDestination(item: $openTarget) { target in
                     switch target {
                     case .person(let person):       PersonDetailView(person: person)
                     case .territory(let territory): TerritoryDetailView(territory: territory)
                     }
                 }
+                .onChange(of: selected) { _, newValue in handleSelect(newValue) }
                 .toolbar(.hidden, for: .navigationBar)
                 .onAppear { locationManager.requestWhenInUseAuthorization() }
                 .task {
@@ -107,6 +117,9 @@ struct ExploreView: View {
                 .sheet(item: $dropped) { pin in
                     LocationActionView(coordinate: pin.coordinate)
                 }
+                .sheet(isPresented: $showSearch) {
+                    MapSearchView(people: people, territories: territories) { jump(to: $0) }
+                }
         }
         .offset(x: dismissDrag)
     }
@@ -117,19 +130,19 @@ struct ExploreView: View {
         MapReader { proxy in
             Map(position: $camera, selection: $selected) {
                 UserAnnotation()
-                ForEach(located) { person in
-                    Marker(person.name,
-                           systemImage: person.interest.symbol,
-                           coordinate: person.coordinate!)
-                        .tint(person.isDue ? .red : person.theme.color)
-                        .tag(MapTarget.person(person))
+                if !routeCoords.isEmpty {
+                    MapPolyline(coordinates: routeCoords)
+                        .stroke(routeColor, style: StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round))
                 }
-                ForEach(locatedTerritories) { territory in
-                    Marker(territory.name,
-                           image: "Territory",
-                           coordinate: territory.coordinate!)
-                        .tint(.orange)
-                        .tag(MapTarget.territory(territory))
+                ForEach(clustered) { item in
+                    if case .single(let point) = item {
+                        marker(for: point)
+                    }
+                    if case .cluster(_, let center, let members) = item {
+                        Annotation("", coordinate: center) {
+                            clusterBubble(count: members.count, center: center)
+                        }
+                    }
                 }
                 if let dropped {
                     Marker("New pin", systemImage: "mappin", coordinate: dropped.coordinate)
@@ -171,6 +184,8 @@ struct ExploreView: View {
     /// everything" button, sitting just below the system map controls.
     private var mapControlsCluster: some View {
         VStack(spacing: 12) {
+            Button { showSearch = true } label: { controlGlyph("magnifyingglass") }
+                .accessibilityLabel("Search")
             Button { showLookChooser = true } label: { controlGlyph(mapLook.symbol) }
                 .popover(isPresented: $showLookChooser) {
                     lookChooser.presentationCompactAdaptation(.popover)
@@ -318,6 +333,237 @@ struct ExploreView: View {
         }
     }
 
+    // MARK: Selection · callout · route
+
+    private func coordinate(of target: MapTarget) -> CLLocationCoordinate2D? {
+        switch target {
+        case .person(let p):    p.coordinate
+        case .territory(let t): t.coordinate
+        }
+    }
+
+    /// On selecting an item: center on it and, for a located person, draw the driving route.
+    private func handleSelect(_ target: MapTarget?) {
+        computeRoute(to: target)
+        guard let target, let coordinate = coordinate(of: target) else { return }
+        let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        withAnimation(.easeInOut) {
+            camera = .region(MKCoordinateRegion(center: coordinate, span: span))
+        }
+    }
+
+    /// Pick a result from search: focus its pin (callout); if it has no location, just open it.
+    private func jump(to target: MapTarget) {
+        showSearch = false
+        if coordinate(of: target) != nil {
+            selected = target
+        } else {
+            openTarget = target
+        }
+    }
+
+    private var routeColor: Color {
+        if case .person(let p) = selected { return p.theme.color }
+        return .blue
+    }
+
+    private func computeRoute(to target: MapTarget?) {
+        routeCoords = []
+        routeMinutes = nil
+        guard let userLocation,
+              case .person(let person)? = target,
+              let dest = person.coordinate else { return }
+        Task {
+            if let result = await Self.route(from: userLocation, to: dest) {
+                routeCoords = result.coords
+                routeMinutes = result.minutes
+            }
+        }
+    }
+
+    /// Driving route from `user` to `dest` as Sendable coordinates + ETA minutes, so nothing
+    /// non-Sendable crosses back to the main actor.
+    private nonisolated static func route(from user: CLLocation, to dest: CLLocationCoordinate2D)
+        async -> (coords: [CLLocationCoordinate2D], minutes: Int)? {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(location: user, address: nil)
+        request.destination = MKMapItem(
+            location: CLLocation(latitude: dest.latitude, longitude: dest.longitude), address: nil)
+        request.transportType = .automobile
+        guard let response = try? await MKDirections(request: request).calculate(),
+              let route = response.routes.first else { return nil }
+        let count = route.polyline.pointCount
+        var coords = [CLLocationCoordinate2D](repeating: CLLocationCoordinate2D(), count: count)
+        route.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: count))
+        return (coords, max(1, Int((route.expectedTravelTime / 60).rounded())))
+    }
+
+    private func openInMaps(_ coordinate: CLLocationCoordinate2D, name: String) {
+        let item = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude),
+                             address: nil)
+        item.name = name
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
+    }
+
+    // MARK: Bottom overlay — callout or Nearby strip
+
+    @ViewBuilder
+    private var bottomOverlay: some View {
+        if let selected {
+            calloutCard(for: selected)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        } else {
+            nearbyStrip
+        }
+    }
+
+    private func calloutCard(for target: MapTarget) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                calloutIcon(target)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title(of: target))
+                        .font(.headline).fontDesign(.serif).lineLimit(1)
+                    Text(subtitle(of: target))
+                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Button { selected = nil } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title2).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dismiss")
+            }
+            HStack(spacing: 10) {
+                Button { openTarget = target } label: {
+                    Label("Open", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                if let dest = coordinate(of: target) {
+                    Button { openInMaps(dest, name: title(of: target)) } label: {
+                        Label(routeMinutes.map { "\($0) min" } ?? "Directions", systemImage: "car.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        }
+        .padding(14)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
+    }
+
+    @ViewBuilder
+    private func calloutIcon(_ target: MapTarget) -> some View {
+        switch target {
+        case .person(let p):
+            let color: Color = p.isDue ? .red : p.theme.color
+            Image(systemName: p.interest.symbol)
+                .font(.headline)
+                .foregroundStyle(color)
+                .frame(width: 40, height: 40)
+                .background(color.opacity(0.15), in: Circle())
+        case .territory:
+            Image("Territory")
+                .resizable().scaledToFit()
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.orange)
+                .frame(width: 40, height: 40)
+                .background(Color.orange.opacity(0.15), in: Circle())
+        }
+    }
+
+    private func title(of target: MapTarget) -> String {
+        switch target {
+        case .person(let p):    p.name
+        case .territory(let t): t.name
+        }
+    }
+
+    private func subtitle(of target: MapTarget) -> String {
+        switch target {
+        case .person(let p):
+            if let note = p.sortedEntries.last?.text, !note.isEmpty { return note }
+            if !p.headline.isEmpty { return p.headline }
+            return p.interest.label
+        case .territory(let t):
+            return territorySubtitle(t)
+        }
+    }
+
+    // MARK: Clustering
+
+    private var mapPoints: [MapPoint] {
+        located.compactMap { person in
+            person.coordinate.map { MapPoint(target: .person(person), coordinate: $0) }
+        }
+        + locatedTerritories.compactMap { territory in
+            territory.coordinate.map { MapPoint(target: .territory(territory), coordinate: $0) }
+        }
+    }
+
+    /// Buckets pins into a grid sized to the current zoom, so they merge into count bubbles when
+    /// zoomed out and split back into individual markers when zoomed in.
+    private var clustered: [MapItem] {
+        let points = mapPoints
+        guard let region = visibleRegion, points.count > 1 else { return points.map { .single($0) } }
+        let grid = 7.0
+        let cellLat = region.span.latitudeDelta / grid
+        let cellLon = region.span.longitudeDelta / grid
+        guard cellLat > 0, cellLon > 0 else { return points.map { .single($0) } }
+        var buckets: [String: [MapPoint]] = [:]
+        for point in points {
+            let row = Int((point.coordinate.latitude / cellLat).rounded(.down))
+            let col = Int((point.coordinate.longitude / cellLon).rounded(.down))
+            buckets["\(row),\(col)", default: []].append(point)
+        }
+        return buckets.map { key, members in
+            guard members.count > 1 else { return MapItem.single(members[0]) }
+            let lat = members.map(\.coordinate.latitude).reduce(0, +) / Double(members.count)
+            let lon = members.map(\.coordinate.longitude).reduce(0, +) / Double(members.count)
+            return .cluster(id: key,
+                            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                            members: members)
+        }
+    }
+
+    @MapContentBuilder
+    private func marker(for point: MapPoint) -> some MapContent {
+        switch point.target {
+        case .person(let person):
+            Marker(person.name, systemImage: person.interest.symbol, coordinate: point.coordinate)
+                .tint(person.isDue ? .red : person.theme.color)
+                .tag(MapTarget.person(person))
+        case .territory(let territory):
+            Marker(territory.name, image: "Territory", coordinate: point.coordinate)
+                .tint(.orange)
+                .tag(MapTarget.territory(territory))
+        }
+    }
+
+    private func clusterBubble(count: Int, center: CLLocationCoordinate2D) -> some View {
+        Text("\(count)")
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.white)
+            .frame(width: 38, height: 38)
+            .background(Color.accentColor.gradient, in: Circle())
+            .overlay(Circle().strokeBorder(.white, lineWidth: 2))
+            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+            .onTapGesture { zoomToCluster(center) }
+    }
+
+    private func zoomToCluster(_ center: CLLocationCoordinate2D) {
+        let span = visibleRegion?.span ?? MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+        let zoomed = MKCoordinateSpan(latitudeDelta: max(span.latitudeDelta / 3, 0.002),
+                                      longitudeDelta: max(span.longitudeDelta / 3, 0.002))
+        withAnimation(.easeInOut) {
+            camera = .region(MKCoordinateRegion(center: center, span: zoomed))
+        }
+    }
+
     // MARK: Default region
 
     /// The opening region: centered on you, sized to include the farthest person within 30 miles
@@ -372,6 +618,81 @@ extension MKCoordinateRegion {
         let lonMax = center.longitude + span.longitudeDelta / 2
         return c.latitude >= latMin && c.latitude <= latMax
             && c.longitude >= lonMin && c.longitude <= lonMax
+    }
+}
+
+/// A located item on the map (person or territory) — the unit of clustering.
+private struct MapPoint {
+    let target: MapTarget
+    let coordinate: CLLocationCoordinate2D
+}
+
+/// Either a single pin or a merged cluster of nearby pins.
+private enum MapItem: Identifiable {
+    case single(MapPoint)
+    case cluster(id: String, center: CLLocationCoordinate2D, members: [MapPoint])
+
+    var id: String {
+        switch self {
+        case .single(let point):
+            switch point.target {
+            case .person(let p):    return "p-\(p.id)"
+            case .territory(let t): return "t-\(t.id)"
+            }
+        case .cluster(let id, _, _):
+            return "c-\(id)"
+        }
+    }
+}
+
+/// A searchable list of people and territories; picking one calls `onSelect` to jump the map there.
+private struct MapSearchView: View {
+    let people: [Person]
+    let territories: [Territory]
+    let onSelect: (MapTarget) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
+
+    private var matchedPeople: [Person] {
+        query.isEmpty ? people
+            : people.filter { $0.name.localizedCaseInsensitiveContains(query)
+                || $0.headline.localizedCaseInsensitiveContains(query) }
+    }
+    private var matchedTerritories: [Territory] {
+        query.isEmpty ? territories
+            : territories.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if !matchedPeople.isEmpty {
+                    Section("People") {
+                        ForEach(matchedPeople) { person in
+                            Button { onSelect(.person(person)) } label: {
+                                Label(person.name, systemImage: person.interest.symbol)
+                            }
+                        }
+                    }
+                }
+                if !matchedTerritories.isEmpty {
+                    Section("Territories") {
+                        ForEach(matchedTerritories) { territory in
+                            Button { onSelect(.territory(territory)) } label: {
+                                Label(territory.name, systemImage: "map")
+                            }
+                        }
+                    }
+                }
+            }
+            .searchable(text: $query, prompt: "Find a person or territory")
+            .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) { Button("Cancel") { dismiss() } }
+            }
+        }
     }
 }
 
