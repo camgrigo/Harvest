@@ -249,6 +249,8 @@ struct PeoplePanelContent: View {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
                     .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
             )
+            // The whole preview is the tap target — the (non-interactive) map won't eat taps.
+            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: "peopleMap", in: mapZoom)

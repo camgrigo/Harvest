@@ -62,6 +62,8 @@ struct ExploreView: View {
     @State private var didSetDefaultCamera = false
     /// The map's current visible region, tracked so the Nearby strip reflects what's on screen.
     @State private var visibleRegion: MKCoordinateRegion?
+    /// Your current location, used to show driving times in the Nearby strip.
+    @State private var userLocation: CLLocation?
     @AppStorage("map.look") private var mapLook: MapLook = .standard
     /// Whether the Maps-style "choose a look" panel is open.
     @State private var showLookChooser = false
@@ -95,6 +97,9 @@ struct ExploreView: View {
                     if let region = await defaultRegion() {
                         withAnimation(.easeInOut) { camera = .region(region) }
                     }
+                }
+                .task {
+                    if userLocation == nil { userLocation = await locator.current() }
                 }
                 .sheet(item: $dropped) { pin in
                     LocationActionView(coordinate: pin.coordinate)
@@ -250,10 +255,12 @@ struct ExploreView: View {
         let targets = nearbyTargets
         if !targets.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                LazyHStack(spacing: 10) {
                     ForEach(targets, id: \.self) { target in
-                        Button { selected = target } label: { NearbyCard(target: target) }
-                            .buttonStyle(.plain)
+                        Button { selected = target } label: {
+                            NearbyCard(target: target, userLocation: userLocation)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 14)
@@ -322,31 +329,58 @@ extension MKCoordinateRegion {
     }
 }
 
-/// A compact card in the Map tab's Nearby strip.
+/// Session cache of driving ETAs (minutes), keyed by user→destination, so the strip doesn't
+/// re-request the same route as it re-renders. Main-actor isolated.
+@MainActor
+enum DriveTimeCache {
+    static var minutes: [String: Int] = [:]
+    static func key(_ c: CLLocationCoordinate2D) -> String {
+        String(format: "%.4f,%.4f", c.latitude, c.longitude)
+    }
+}
+
+/// A compact card in the Map tab's Nearby strip: an icon, the item's name, and the driving time
+/// from where you are now.
 private struct NearbyCard: View {
     let target: MapTarget
+    let userLocation: CLLocation?
+
+    @State private var driveMinutes: Int?
 
     var body: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: 10) {
             iconView
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                     .fontDesign(.serif)
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                driveLabel
             }
             Spacer(minLength: 0)
         }
         .padding(10)
-        .frame(width: 200, alignment: .leading)
+        .frame(width: 168, alignment: .leading)
         .background(Color(.secondarySystemGroupedBackground),
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
+        .task(id: cacheKey) { await loadETA() }
+    }
+
+    @ViewBuilder
+    private var driveLabel: some View {
+        if let driveMinutes {
+            Label("\(driveMinutes) min", systemImage: "car.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        } else if userLocation != nil, coordinate != nil {
+            Label("…", systemImage: "car.fill")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
     }
 
     private var title: String {
@@ -356,20 +390,52 @@ private struct NearbyCard: View {
         }
     }
 
-    private var subtitle: String {
+    private var coordinate: CLLocationCoordinate2D? {
         switch target {
-        case .person(let p):
-            personDueText(p) ?? (p.headline.isEmpty ? p.interest.label : p.headline)
-        case .territory(let t):
-            territorySubtitle(t)
+        case .person(let p):    p.coordinate
+        case .territory(let t): t.coordinate
         }
+    }
+
+    /// Stable per (user, destination); also drives `.task(id:)` so the ETA loads once.
+    private var cacheKey: String? {
+        guard let user = userLocation, let dest = coordinate else { return nil }
+        return "\(DriveTimeCache.key(user.coordinate))->\(DriveTimeCache.key(dest))"
+    }
+
+    private func loadETA() async {
+        guard let key = cacheKey, let user = userLocation, let dest = coordinate else { return }
+        if let cached = DriveTimeCache.minutes[key] { driveMinutes = cached; return }
+        let minutes = await Self.drivingMinutes(from: user, to: dest)
+            ?? Self.estimatedMinutes(from: user, to: dest)
+        DriveTimeCache.minutes[key] = minutes
+        driveMinutes = minutes
+    }
+
+    /// Real driving ETA via MapKit routing, in whole minutes.
+    private nonisolated static func drivingMinutes(from user: CLLocation,
+                                                   to dest: CLLocationCoordinate2D) async -> Int? {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(location: user, address: nil)
+        request.destination = MKMapItem(
+            location: CLLocation(latitude: dest.latitude, longitude: dest.longitude), address: nil)
+        request.transportType = .automobile
+        guard let eta = try? await MKDirections(request: request).calculateETA() else { return nil }
+        return max(1, Int((eta.expectedTravelTime / 60).rounded()))
+    }
+
+    /// Offline fallback when routing is throttled/unavailable: straight-line distance at ~30 mph.
+    private nonisolated static func estimatedMinutes(from user: CLLocation,
+                                                     to dest: CLLocationCoordinate2D) -> Int {
+        let meters = user.distance(from: CLLocation(latitude: dest.latitude, longitude: dest.longitude))
+        return max(1, Int((meters / 13.4 / 60).rounded()))
     }
 
     @ViewBuilder
     private var iconView: some View {
         switch target {
         case .person(let p):
-            let color: Color = p.isDue ? .red : .blue
+            let color: Color = p.isDue ? .red : p.theme.color
             Image(systemName: p.interest.symbol)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(color)
