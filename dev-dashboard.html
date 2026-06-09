@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harvest — Dev Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --panel: #ffffff;
+    --ink: #1c1b18;
+    --muted: #6f6b63;
+    --line: rgba(0,0,0,0.08);
+    --accent: #e8862b;      /* harvest orange */
+    --accent-2: #6a8f3c;    /* wheat green */
+    --shadow: 0 6px 24px rgba(0,0,0,0.08);
+    --radius: 16px;
+    --s: #4a9d5b; --m: #c9942b; --l: #cf5b4e;
+    --idea:#8a8a8a; --exploring:#3b82c4; --next:#e8862b; --shipped:#4a9d5b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#15140f; --panel:#211f19; --ink:#f0ece2; --muted:#a09a8c;
+      --line:rgba(255,255,255,0.10); --shadow:0 8px 30px rgba(0,0,0,0.5);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, "SF Pro Text", system-ui, sans-serif;
+    padding-bottom: 64px;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+
+  header {
+    background:
+      radial-gradient(120% 140% at 100% 0%, rgba(232,134,43,0.22), transparent 60%),
+      radial-gradient(120% 140% at 0% 0%, rgba(106,143,60,0.18), transparent 55%);
+    border-bottom: 1px solid var(--line);
+  }
+  .head-inner { padding: 30px 0 24px; }
+  .brand { display:flex; align-items:center; gap:12px; }
+  .logo {
+    width:42px; height:42px; border-radius:12px; flex:none;
+    background: linear-gradient(145deg, var(--accent), #d2701c);
+    display:grid; place-items:center; color:#fff; font-size:22px;
+    box-shadow: var(--shadow);
+  }
+  h1 { font-size: 26px; margin: 0; letter-spacing:-0.02em;
+       font-family:"New York", Georgia, "Times New Roman", serif; }
+  .tag { color: var(--muted); margin: 2px 0 0; font-size: 14px; }
+
+  .stats { display:flex; flex-wrap:wrap; gap:12px; margin-top:22px; }
+  .stat {
+    background: var(--panel); border:1px solid var(--line); border-radius:14px;
+    padding:12px 16px; min-width:118px; box-shadow: var(--shadow);
+  }
+  .stat b { display:block; font-size:24px; line-height:1.1; letter-spacing:-0.02em; }
+  .stat span { color: var(--muted); font-size:12.5px; }
+
+  details.shipped {
+    margin: 22px 0 6px; background: var(--panel); border:1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); overflow:hidden;
+  }
+  details.shipped > summary {
+    cursor:pointer; padding:14px 18px; font-weight:600; list-style:none;
+    display:flex; align-items:center; gap:10px;
+  }
+  details.shipped > summary::-webkit-details-marker { display:none; }
+  details.shipped > summary::after { content:"▸"; color:var(--muted); margin-left:auto; transition:transform .2s; }
+  details.shipped[open] > summary::after { transform: rotate(90deg); }
+  .ship-grid { padding: 4px 18px 18px; display:grid; gap:8px 18px;
+               grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); }
+  .ship-grid div { color: var(--muted); font-size:13.5px; padding-left:18px; position:relative; }
+  .ship-grid div::before { content:"✓"; color:var(--shipped); position:absolute; left:0; font-weight:700; }
+
+  .controls { position:sticky; top:0; z-index:5; padding:14px 0;
+              background: color-mix(in srgb, var(--bg) 88%, transparent);
+              backdrop-filter: blur(10px); border-bottom:1px solid var(--line); }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input[type=search], select {
+    font:inherit; color:inherit; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:8px 12px;
+  }
+  input[type=search]{ flex:1; min-width:200px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .chip {
+    border:1px solid var(--line); background:var(--panel); color:var(--muted);
+    border-radius:999px; padding:6px 13px; font-size:13px; cursor:pointer; user-select:none;
+  }
+  .chip.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+
+  .grid { display:grid; gap:14px; margin-top:18px;
+          grid-template-columns: repeat(auto-fill, minmax(320px,1fr)); }
+  .card {
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; box-shadow:var(--shadow); display:flex; flex-direction:column; gap:10px;
+    border-left:4px solid var(--line);
+  }
+  .card[data-horizon="now"]  { border-left-color: var(--accent); }
+  .card[data-horizon="next"] { border-left-color: var(--accent-2); }
+  .card[data-horizon="later"]{ border-left-color: var(--line); }
+  .card h3 { margin:0; font-size:16px; letter-spacing:-0.01em; }
+  .card p { margin:0; color:var(--muted); font-size:13.5px; }
+  .meta { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:11.5px; }
+  .pill { border-radius:999px; padding:3px 9px; font-weight:600; letter-spacing:.02em; }
+  .cat { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+  .eff-S{ color:#fff; background:var(--s);} .eff-M{ color:#fff; background:var(--m);} .eff-L{ color:#fff; background:var(--l);}
+  .impact { color:var(--muted); letter-spacing:2px; }
+  .horizon { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--muted); text-transform:capitalize; }
+  .status {
+    margin-left:auto; cursor:pointer; border:1px solid var(--line);
+    border-radius:999px; padding:4px 11px; font-weight:600; font-size:11.5px; user-select:none;
+  }
+  .st-idea{ color:var(--idea);} .st-exploring{ color:var(--exploring);}
+  .st-next{ color:#fff; background:var(--next); border-color:transparent;}
+  .st-shipped{ color:#fff; background:var(--shipped); border-color:transparent;}
+  textarea {
+    font:inherit; color:inherit; background:transparent; border:1px dashed var(--line);
+    border-radius:10px; padding:8px 10px; resize:vertical; min-height:34px; width:100%;
+  }
+  textarea::placeholder{ color:var(--muted); opacity:.7; }
+  .empty { text-align:center; color:var(--muted); padding:60px 0; }
+  footer { color:var(--muted); font-size:12.5px; margin-top:30px; line-height:1.7; }
+  .hint { color:var(--muted); font-size:12px; margin-top:8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap head-inner">
+    <div class="brand">
+      <div class="logo">🌾</div>
+      <div>
+        <h1>Harvest — Dev Dashboard</h1>
+        <p class="tag">Chatbot-first, on-device iOS app for field-ministry return visits & territories. Plan what's next.</p>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+
+    <details class="shipped">
+      <summary>✅ Shipped so far <span style="color:var(--muted);font-weight:400" id="shipCount"></span></summary>
+      <div class="ship-grid" id="shipGrid"></div>
+    </details>
+  </div>
+</header>
+
+<div class="controls">
+  <div class="wrap">
+    <div class="row">
+      <input id="q" type="search" placeholder="Search ideas…" />
+      <select id="status">
+        <option value="">All statuses</option>
+        <option value="idea">Idea</option>
+        <option value="exploring">Exploring</option>
+        <option value="next">Next up</option>
+        <option value="shipped">Done</option>
+      </select>
+      <select id="horizon">
+        <option value="">All horizons</option>
+        <option value="now">Now</option>
+        <option value="next">Next</option>
+        <option value="later">Later</option>
+      </select>
+      <select id="sort">
+        <option value="default">Sort: Horizon → Impact</option>
+        <option value="impact">Sort: Impact ↓</option>
+        <option value="effort">Sort: Effort ↑</option>
+        <option value="title">Sort: A–Z</option>
+      </select>
+    </div>
+    <div class="chips" id="cats"></div>
+    <div class="hint">Tap a status pill to cycle <b>Idea → Exploring → Next up → Done</b>. Notes & statuses are saved in this browser.</div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" hidden>No ideas match those filters.</div>
+  <footer>
+    <b>Conventions:</b> 100% on-device & privacy-first · native SwiftUI · runs on the physical iPhone 17 (no sim runtime) · commit-don't-push · keep responses brief.<br/>
+    Effort = rough build size (S/M/L). Impact = ●/●●/●●● gut-feel value to a publisher. Horizon = suggested Now / Next / Later. All editable here — this file is just a planning aid, not app code.
+  </footer>
+</div>
+
+<script>
+const SHIPPED = [
+  "Chatbot logging → person + note + address + reminder (on-device)",
+  "Heuristic FallbackParser when Apple Intelligence is off",
+  "Full map: markers, look styles, drop-pin to add",
+  "Pin clustering (zoom-aware) + tap-to-zoom",
+  "Selection callout: latest note, driving ETA, Open, Directions",
+  "Driving route polyline from you to a person",
+  "Map search → jump to a person/territory",
+  "Nearby strip: icon + name + driving minutes",
+  "Left-edge swipe + X to dismiss the full map",
+  "People tab: map preview → zoom to full screen",
+  "Masonry feed with native search + People/Territories sections",
+  "Per-person name font + color theme (color shows in detail)",
+  "Chat reply renders a tappable person card for changes",
+  "Calendar tab: month picker + natural-language new plan",
+  "Service plan parser (NSDataDetector + place/partner)",
+  "Territories + not-at-homes + OCR territory-card scan",
+  "Encrypted backup & restore (cloud-down-arrow button)",
+  "App Intents / Siri shortcuts",
+  "Haptics: pin drop + chat reply",
+  "Reminders with notification actions (visited / snooze)",
+  "Voice dictation (on-device) in the composer",
+  "Onboarding + first-run permission flow",
+  "Unit + UI test suites (run on device)",
+];
+
+const FEATURES = [
+  // Map
+  ["Route optimizer","Order today's due visits into an efficient driving loop (nearest-neighbour / TSP) with one tap to start turn-by-turn.","Map","M",3,"now"],
+  ["Filter pins","Toggle map pins by interest, due/overdue, or territory so a busy map stays readable.","Map","S",2,"now"],
+  ["Territory boundaries","Draw or import territory polygons and shade them on the map; tap to open.","Map","L",3,"next"],
+  ["Offline map tiles","Cache the areas you work so the map and pins load with no signal.","Map","M",2,"later"],
+  ["Visit breadcrumb","Show today's path/visited trail so you can see what you've covered.","Map","M",1,"later"],
+
+  // People
+  ["Households","Link family members into a household card; log a visit to the whole home.","People","M",3,"next"],
+  ["Bible-study tracker","Track which publication & lesson (e.g. Enjoy Life Forever! lesson #) each study is on.","People","M",3,"now"],
+  ["Interest timeline","A visual timeline of a person's interest level and key moments over time.","People","M",2,"next"],
+  ["Photo & voice attachments","Attach a doorway photo or a voice memo to a person for quick recall.","People","S",2,"next"],
+  ["Best-time learning","Suggest the best time of day to call based on past successful contacts.","People","M",2,"later"],
+  ["Tags / labels","Free-form tags (\"speaks Spanish\", \"shift worker\") with filtering.","People","S",2,"next"],
+
+  // Territories & not-at-homes
+  ["Not-at-home retry windows","Schedule a not-at-home to resurface at a different time of day per jw.org guidance.","Territories","M",3,"now"],
+  ["Territory check-out","Check a territory out/in and track coverage % as you work it.","Territories","M",3,"next"],
+  ["Street-by-street progress","Per-street completion within a territory.","Territories","M",2,"later"],
+  ["Do-not-call manager","First-class do-not-call list with reminders to honour it.","Territories","S",2,"next"],
+
+  // Reminders & scheduling
+  ["Recurring studies","Repeating study appointments with smart reminders.","Reminders","M",3,"next"],
+  ["Smart reminder windows","Per-person morning/evening reminder preference instead of a fixed time.","Reminders","S",2,"now"],
+  ["Two-way Calendar sync","Keep service plans in sync with Apple Calendar both directions.","Reminders","L",2,"later"],
+
+  // AI & chat
+  ["Weekly briefing","\"Catch me up\": who's due, recent notes, and a suggested approach for each.","AI & Chat","M",3,"now"],
+  ["Suggested talking points","On-device scripture/publication suggestions from the last conversation.","AI & Chat","M",2,"next"],
+  ["Hands-free logging","Dictate a whole visit and have it parsed & filed without touching the screen.","AI & Chat","M",3,"next"],
+  ["Merge duplicates","Detect and merge two records that are the same person.","AI & Chat","M",2,"later"],
+
+  // Reports & stats
+  ["Monthly field report","Auto-tally hours, placements, videos, return visits & studies into the monthly report.","Reports","M",3,"now"],
+  ["Service session timer","Start/stop a session with a Live Activity; rolls into the monthly report.","Reports","M",3,"next"],
+  ["Trends & insights","Visits per week, interest-to-study conversion, streaks.","Reports","M",2,"later"],
+  ["Export report","Printable / CSV export of activity for your records.","Reports","S",2,"next"],
+
+  // Widgets & Siri
+  ["\"Due today\" widget","Home-screen widget showing who's due and the next visit.","Widgets & Siri","M",3,"now"],
+  ["Interactive mark-visited","Mark a visit done straight from a widget or notification.","Widgets & Siri","M",2,"next"],
+  ["Lock-screen + Live Activity","Glanceable due count; active-session Live Activity.","Widgets & Siri","M",2,"later"],
+  ["Shortcuts automations","Auto-start a session when you arrive in a territory; more App Shortcuts.","Widgets & Siri","M",2,"later"],
+
+  // Sync & backup
+  ["iCloud private sync","End-to-end CloudKit sync across your own devices (no servers see data).","Sync & Backup","L",3,"next"],
+  ["Auto encrypted backups","Scheduled background encrypted backups to Files/iCloud Drive.","Sync & Backup","S",2,"now"],
+  ["Apple Watch companion","Quick log + today's due list on the wrist.","Sync & Backup","L",2,"later"],
+
+  // Platform & polish
+  ["iPad split layout","Two-column list + map for iPad / Stage Manager.","Platform","M",2,"later"],
+  ["Localization","Translate the UI; multi-language note understanding.","Platform","M",2,"later"],
+  ["Accessibility pass","VoiceOver labels + Dynamic Type audit across every screen.","Platform","S",3,"now"],
+  ["App Store prep","Screenshots, privacy nutrition label, TestFlight beta.","Platform","M",3,"next"],
+  ["Themed territories","Extend the per-person color theme to territories too.","Platform","S",1,"later"],
+];
+
+const STATUSES = ["idea","exploring","next","shipped"];
+const STATUS_LABEL = {idea:"Idea", exploring:"Exploring", next:"Next up", shipped:"Done"};
+const EFFORT_W = {S:1,M:2,L:3};
+const HORIZON_W = {now:0,next:1,later:2};
+
+const KEY = "harvest-dash-v1";
+const store = JSON.parse(localStorage.getItem(KEY) || "{}");
+const save = () => localStorage.setItem(KEY, JSON.stringify(store));
+const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+
+const items = FEATURES.map(([title,desc,cat,eff,impact,horizon]) => ({
+  id: slug(title), title, desc, cat, eff, impact, horizon
+}));
+
+const cats = [...new Set(items.map(i => i.cat))];
+let activeCat = "";
+
+const el = id => document.getElementById(id);
+
+function statusOf(it){ return (store[it.id] && store[it.id].status) || "idea"; }
+function noteOf(it){ return (store[it.id] && store[it.id].note) || ""; }
+function setStatus(it, s){ store[it.id] = Object.assign({}, store[it.id], {status:s}); save(); render(); }
+function setNote(it, n){ store[it.id] = Object.assign({}, store[it.id], {note:n}); save(); }
+
+function renderChips(){
+  const c = el("cats");
+  c.innerHTML = "";
+  const all = mk("All", activeCat==="");
+  all.onclick = () => { activeCat=""; render(); };
+  c.appendChild(all);
+  cats.forEach(cat => {
+    const ch = mk(cat, activeCat===cat);
+    ch.onclick = () => { activeCat = activeCat===cat ? "" : cat; render(); };
+    c.appendChild(ch);
+  });
+  function mk(label,on){ const d=document.createElement("div"); d.className="chip"+(on?" on":""); d.textContent=label; return d; }
+}
+
+function render(){
+  const q = el("q").value.trim().toLowerCase();
+  const fStatus = el("status").value;
+  const fHorizon = el("horizon").value;
+  const sort = el("sort").value;
+
+  let list = items.filter(it => {
+    if (activeCat && it.cat !== activeCat) return false;
+    if (fStatus && statusOf(it) !== fStatus) return false;
+    if (fHorizon && it.horizon !== fHorizon) return false;
+    if (q && !(it.title.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q) || it.cat.toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  list.sort((a,b) => {
+    if (sort==="impact") return b.impact - a.impact;
+    if (sort==="effort") return EFFORT_W[a.eff] - EFFORT_W[b.eff];
+    if (sort==="title")  return a.title.localeCompare(b.title);
+    return (HORIZON_W[a.horizon]-HORIZON_W[b.horizon]) || (b.impact-a.impact);
+  });
+
+  const grid = el("grid");
+  grid.innerHTML = "";
+  list.forEach(it => grid.appendChild(card(it)));
+  el("empty").hidden = list.length !== 0;
+
+  renderStats();
+  renderChips();
+}
+
+function card(it){
+  const s = statusOf(it);
+  const c = document.createElement("div");
+  c.className = "card";
+  c.dataset.horizon = it.horizon;
+  c.innerHTML = `
+    <div class="meta">
+      <span class="pill cat">${it.cat}</span>
+      <span class="pill eff-${it.eff}">${it.eff}</span>
+      <span class="impact" title="impact">${"●".repeat(it.impact)}${"·".repeat(3-it.impact)}</span>
+      <span class="pill horizon">${it.horizon}</span>
+      <span class="status st-${s}">${STATUS_LABEL[s]}</span>
+    </div>
+    <h3>${it.title}</h3>
+    <p>${it.desc}</p>
+  `;
+  const ta = document.createElement("textarea");
+  ta.placeholder = "Notes…";
+  ta.value = noteOf(it);
+  ta.addEventListener("input", () => setNote(it, ta.value));
+  c.appendChild(ta);
+
+  c.querySelector(".status").onclick = () => {
+    const next = STATUSES[(STATUSES.indexOf(s)+1) % STATUSES.length];
+    setStatus(it, next);
+  };
+  return c;
+}
+
+function renderStats(){
+  const counts = {idea:0,exploring:0,next:0,shipped:0};
+  items.forEach(it => counts[statusOf(it)]++);
+  el("stats").innerHTML = `
+    <div class="stat"><b>${SHIPPED.length}</b><span>Shipped in app</span></div>
+    <div class="stat"><b>${items.length}</b><span>Future ideas</span></div>
+    <div class="stat" style="color:var(--next)"><b>${counts.next}</b><span>Marked next up</span></div>
+    <div class="stat" style="color:var(--exploring)"><b>${counts.exploring}</b><span>Exploring</span></div>
+    <div class="stat" style="color:var(--shipped)"><b>${counts.shipped}</b><span>You marked done</span></div>
+  `;
+}
+
+el("shipCount").textContent = "(" + SHIPPED.length + ")";
+el("shipGrid").innerHTML = SHIPPED.map(s => `<div>${s}</div>`).join("");
+["q","status","horizon","sort"].forEach(id => el(id).addEventListener("input", render));
+render();
+</script>
+</body>
+</html>
