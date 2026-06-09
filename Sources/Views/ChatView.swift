@@ -42,6 +42,8 @@ struct ConversationView: View {
     @State private var atBottom = true
     /// When a transcript card is tapped, the person whose page to push.
     @State private var openedPerson: Person?
+    /// Bumps each time a reply lands, to fire a light haptic (à la ChatGPT).
+    @State private var responseTick = 0
 
     private var messages: [ChatMessage] {
         ChatThread.messages(in: allMessages, person: person, includeCleared: showCleared)
@@ -81,6 +83,7 @@ struct ConversationView: View {
             try? await Task.sleep(for: .milliseconds(350))
             inputFocused = true
         }
+        .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: responseTick)
     }
 
     // MARK: Menu
@@ -338,6 +341,7 @@ struct ConversationView: View {
 
         isThinking = false
         let bot = record(reply, fromUser: false)
+        responseTick += 1   // light tap of feedback when the answer lands
         // If this reply created or changed a person, surface a tappable card for them instead of
         // leaning on the text. Card-forward replies appear at once rather than streaming in.
         if let subject = NotebookEngine.subject(for: parsed, context: context) {

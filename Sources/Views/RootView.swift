@@ -18,10 +18,10 @@ struct RootView: View {
             Tab("Map", systemImage: "map.fill") {
                 ExploreView()
             }
-            Tab("People", systemImage: "list.bullet") {
+            Tab("People", systemImage: "person.2.fill") {
                 PeoplePanelContent()
             }
-            Tab("Schedule", systemImage: "calendar") {
+            Tab("Calendar", systemImage: "calendar") {
                 ServicePlansView()
             }
         }

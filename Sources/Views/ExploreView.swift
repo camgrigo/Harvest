@@ -65,6 +65,8 @@ struct ExploreView: View {
     @AppStorage("map.look") private var mapLook: MapLook = .standard
     /// Whether the Maps-style "choose a look" panel is open.
     @State private var showLookChooser = false
+    /// When set (presented full-screen from the People tab), shows an X to dismiss.
+    var onClose: (() -> Void)? = nil
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -76,7 +78,8 @@ struct ExploreView: View {
         NavigationStack {
             map
                 .overlay(alignment: .bottom) { nearbyStrip }
-                .overlay(alignment: .topLeading) { lookButton }
+                .overlay(alignment: .topTrailing) { lookButton }
+                .overlay(alignment: .topLeading) { closeButton }
                 .navigationDestination(item: $selected) { target in
                     switch target {
                     case .person(let person):       PersonDetailView(person: person)
@@ -137,6 +140,10 @@ struct ExploreView: View {
             }
             .gesture(dropPinGesture(proxy))
             .ignoresSafeArea(edges: .bottom)
+            // A solid tap of feedback the moment a pin lands.
+            .sensoryFeedback(trigger: dropped?.id) { _, newValue in
+                newValue != nil ? .impact(flexibility: .solid, intensity: 0.7) : nil
+            }
         }
     }
 
@@ -162,10 +169,29 @@ struct ExploreView: View {
                 .background(.regularMaterial, in: Circle())
                 .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
         }
-        .padding(.leading, 12)
-        .padding(.top, 8)
+        // On the right, below the system controls — the Apple Maps map-style spot.
+        .padding(.trailing, 12)
+        .padding(.top, 96)
         .popover(isPresented: $showLookChooser) {
             lookChooser.presentationCompactAdaptation(.popover)
+        }
+    }
+
+    /// Dismiss control, shown only when this map is presented full-screen (from the People tab).
+    @ViewBuilder
+    private var closeButton: some View {
+        if let onClose {
+            Button { onClose() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.regularMaterial, in: Circle())
+                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+            }
+            .padding(.leading, 12)
+            .padding(.top, 8)
+            .accessibilityLabel("Close map")
         }
     }
 

@@ -23,6 +23,11 @@ struct NewServicePlanView: View {
     @State private var addToCalendar = false
     @State private var calendarError: String?
 
+    /// Pre-seeds the date (e.g. the Calendar tab's selected day); defaults to the next hour.
+    init(initialDate: Date = NewServicePlanView.defaultStart()) {
+        _date = State(initialValue: initialDate)
+    }
+
     private var canCreate: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         || !place.trimmingCharacters(in: .whitespaces).isEmpty

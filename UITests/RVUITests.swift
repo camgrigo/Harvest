@@ -200,7 +200,7 @@ final class RVUITests: XCTestCase {
         openPeople(app)
         XCTAssertTrue(app.staticTexts["Maria"].waitForExistence(timeout: 10),
                       "The People tab lists Maria")
-        XCTAssertTrue(app.buttons["Map"].exists && app.buttons["Schedule"].exists,
+        XCTAssertTrue(app.buttons["Map"].exists && app.buttons["Calendar"].exists,
                       "The tab bar stays put across tabs")
     }
 }

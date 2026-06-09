@@ -10,46 +10,64 @@ struct ServicePlansView: View {
 
     @State private var editing: ServicePlan?
     @State private var addingNew = false
+    @State private var selectedDate: Date = .now
 
     private var upcoming: [ServicePlan] { plans.filter(\.isUpcoming) }
     private var past: [ServicePlan] { plans.filter { !$0.isUpcoming }.reversed() }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if plans.isEmpty {
-                    ContentUnavailableView(
-                        "No service plans",
-                        systemImage: "calendar",
-                        description: Text("Plan a time in the ministry — when, where you'll meet, and who you're going with.")
-                    )
-                } else {
-                    List {
-                        if !upcoming.isEmpty {
-                            Section("Upcoming") {
-                                ForEach(upcoming) { planRow($0) }
-                                    .onDelete { delete(upcoming, $0) }
+            VStack(spacing: 0) {
+                DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                    .datePickerStyle(.graphical)
+                    .padding(.horizontal)
+                    .padding(.bottom, 4)
+                Group {
+                    if plans.isEmpty {
+                        ContentUnavailableView(
+                            "No service plans",
+                            systemImage: "calendar",
+                            description: Text("Plan a time in the ministry — when, where you'll meet, and who you're going with.")
+                        )
+                    } else {
+                        List {
+                            if !upcoming.isEmpty {
+                                Section("Upcoming") {
+                                    ForEach(upcoming) { planRow($0) }
+                                        .onDelete { delete(upcoming, $0) }
+                                }
                             }
-                        }
-                        if !past.isEmpty {
-                            Section("Past") {
-                                ForEach(past) { planRow($0) }
-                                    .onDelete { delete(past, $0) }
+                            if !past.isEmpty {
+                                Section("Past") {
+                                    ForEach(past) { planRow($0) }
+                                        .onDelete { delete(past, $0) }
+                                }
                             }
                         }
                     }
                 }
             }
-            .navigationTitle("Service Plans")
+            .navigationTitle("Calendar")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { addingNew = true } label: { Image(systemName: "plus") }
-                }
-            }
+            .safeAreaInset(edge: .bottom) { addBar }
             .sheet(item: $editing) { plan in PlanEditor(plan: plan) }
-            .sheet(isPresented: $addingNew) { NewServicePlanView() }
+            .sheet(isPresented: $addingNew) { NewServicePlanView(initialDate: selectedDate) }
         }
+    }
+
+    /// Bottom action that opens a new plan pre-seeded with the calendar's selected date.
+    private var addBar: some View {
+        Button { addingNew = true } label: {
+            Label("New plan · \(selectedDate.formatted(.dateTime.month(.abbreviated).day()))",
+                  systemImage: "plus.circle.fill")
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+        }
+        .buttonStyle(.borderedProminent)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(.bar)
     }
 
     private func planRow(_ plan: ServicePlan) -> some View {

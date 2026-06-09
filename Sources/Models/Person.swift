@@ -18,6 +18,10 @@ final class Person {
     var isArchived: Bool
     /// A one-line gist kept fresh by the chatbot, shown in lists and on the map.
     var headline: String
+    /// Per-person display style, stored as `PersonFont` / `PersonTheme` raw values and chosen on
+    /// their page. Defaulted so existing rows migrate cleanly to the prior look (serif / classic).
+    var nameFontRaw: String = "serif"
+    var themeRaw: String = "classic"
 
     @Relationship(deleteRule: .cascade, inverse: \JournalEntry.person)
     var entries: [JournalEntry]

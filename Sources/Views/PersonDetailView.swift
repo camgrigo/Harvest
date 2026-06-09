@@ -31,6 +31,7 @@ struct PersonDetailView: View {
                 }
             }
             infoActionsSection
+            if isEditing { styleSection }
             if let summary {
                 Section { Text(summary).foregroundStyle(.secondary).textSelection(.enabled) }
             }
@@ -220,6 +221,56 @@ struct PersonDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: Style
+
+    /// Per-person look: the font their name renders in, and a color theme for their card.
+    private var styleSection: some View {
+        Section("Style") {
+            Picker("Name font", selection: fontBinding) {
+                ForEach(PersonFont.allCases) { font in
+                    Text(font.label).fontDesign(font.design).tag(font)
+                }
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Color theme")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 14) {
+                    ForEach(PersonTheme.allCases) { theme in
+                        Button { setTheme(theme) } label: {
+                            Circle()
+                                .fill(theme.color)
+                                .frame(width: 30, height: 30)
+                                .overlay {
+                                    if person.theme == theme {
+                                        Image(systemName: "checkmark")
+                                            .font(.caption.weight(.bold))
+                                            .foregroundStyle(.white)
+                                    }
+                                }
+                                .overlay(Circle().strokeBorder(
+                                    .white.opacity(person.theme == theme ? 0.9 : 0), lineWidth: 2))
+                                .shadow(color: .black.opacity(0.15), radius: 1, y: 1)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(theme.label)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    private var fontBinding: Binding<PersonFont> {
+        Binding(get: { person.nameFont },
+                set: { person.nameFontRaw = $0.rawValue; context.saveIfPossible() })
+    }
+
+    private func setTheme(_ theme: PersonTheme) {
+        person.themeRaw = theme.rawValue
+        context.saveIfPossible()
     }
 
     private var reminderLabel: String {

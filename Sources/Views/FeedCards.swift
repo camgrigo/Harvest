@@ -3,6 +3,63 @@ import MapKit
 import CoreLocation
 import UIKit
 
+// MARK: - Per-person style
+
+/// The typeface a person's name is shown in — chosen on their page.
+enum PersonFont: String, CaseIterable, Identifiable {
+    case serif, system, rounded, monospaced
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .serif:      "Serif"
+        case .system:     "System"
+        case .rounded:    "Rounded"
+        case .monospaced: "Mono"
+        }
+    }
+    var design: Font.Design {
+        switch self {
+        case .serif:      .serif
+        case .system:     .default
+        case .rounded:    .rounded
+        case .monospaced: .monospaced
+        }
+    }
+}
+
+/// A per-person color theme — tints their card's frame and status label.
+enum PersonTheme: String, CaseIterable, Identifiable {
+    case classic, ocean, forest, sunset, grape, rose, slate
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .classic: "Classic"
+        case .ocean:   "Ocean"
+        case .forest:  "Forest"
+        case .sunset:  "Sunset"
+        case .grape:   "Grape"
+        case .rose:    "Rose"
+        case .slate:   "Slate"
+        }
+    }
+    var color: Color {
+        switch self {
+        case .classic: .accentColor
+        case .ocean:   .teal
+        case .forest:  .green
+        case .sunset:  .orange
+        case .grape:   .purple
+        case .rose:    .pink
+        case .slate:   Color(.systemGray)
+        }
+    }
+}
+
+extension Person {
+    var nameFont: PersonFont { PersonFont(rawValue: nameFontRaw) ?? .serif }
+    var theme: PersonTheme { PersonTheme(rawValue: themeRaw) ?? .classic }
+}
+
 // MARK: - Look Around thumbnail
 
 /// In-memory cache of Look Around stills, keyed by rounded coordinate, so scrolling a row off
@@ -133,7 +190,8 @@ func territorySubtitle(_ territory: Territory) -> String {
 private extension View {
     /// The opaque, softly shadowed card surface shared by the Explore feed cards — modeled on the
     /// iOS 26 Siri/Notes masonry: a solid rounded tile that lifts off the sheet with a gentle shadow.
-    func feedCardSurface() -> some View {
+    func feedCardSurface(borderColor: Color = Color.primary.opacity(0.06),
+                         borderWidth: CGFloat = 0.5) -> some View {
         self
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -141,7 +199,7 @@ private extension View {
                         in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 0.5)
+                    .strokeBorder(borderColor, lineWidth: borderWidth)
             )
             .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
     }
@@ -180,11 +238,15 @@ struct PersonGridCard: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .strokeBorder(person.theme.color.opacity(0.85), lineWidth: 2.5)
+                )
                 .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
         } else {
-            // No photo: a solid text tile.
+            // No photo: a solid text tile, framed in the person's theme color.
             content(onImage: false)
-                .feedCardSurface()
+                .feedCardSurface(borderColor: person.theme.color.opacity(0.55), borderWidth: 1.5)
         }
     }
 
@@ -196,7 +258,7 @@ struct PersonGridCard: View {
                     if let label = topLabel {
                         Text(label.text)
                             .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
-                                                     : label.color)
+                                                     : (person.isDue ? Color.red : person.theme.color))
                     }
                     Spacer(minLength: 0)
                     if let distanceText {
@@ -208,7 +270,7 @@ struct PersonGridCard: View {
             }
             Text(person.name)
                 .font(.title3.weight(.bold))
-                .fontDesign(.serif)
+                .fontDesign(person.nameFont.design)
                 .foregroundStyle(onImage ? Color.white : Color.primary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)

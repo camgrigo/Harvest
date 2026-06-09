@@ -4,20 +4,7 @@ import MapKit
 import CoreLocation
 import UIKit
 
-/// One entry in the unified feed below the map.
-enum FeedItem: Identifiable {
-    case person(Person)
-    case territory(Territory)
-
-    var id: String {
-        switch self {
-        case .person(let p): "p-\(p.id)"
-        case .territory(let t): "t-\(t.id)"
-        }
-    }
-}
-
-/// How the unified feed is ordered.
+/// How the People feed is ordered.
 private enum SortMode: String, CaseIterable, Identifiable {
     case recent, nearest, due, name
     var id: String { rawValue }
@@ -39,9 +26,9 @@ private enum SortMode: String, CaseIterable, Identifiable {
     }
 }
 
-/// The unified feed shown inside the panel: people (return visits) and territories
-/// (house-to-house areas). Tapping a row — or a map pin — sets `selected`, which both focuses
-/// the map and pushes the matching detail screen within this stack.
+/// The People tab: a tappable map preview up top, then your people (image-forward masonry) and your
+/// territories (their own section) below. Search is native; sort and backup live in the toolbar.
+/// Tapping a card — or a pin in the expanded map — opens the matching detail screen.
 struct PeoplePanelContent: View {
     @Query(filter: #Predicate<Person> { !$0.isArchived },
            sort: \Person.createdAt, order: .reverse) private var people: [Person]
@@ -52,7 +39,6 @@ struct PeoplePanelContent: View {
     @StateObject private var locator = CurrentLocationProvider()
     @State private var search = ""
     @State private var sort: SortMode = .recent
-    @State private var showTerritories = true
     @State private var userLocation: CLLocation?
     @State private var addingTerritory = false
     @State private var personToDelete: Person?
@@ -61,6 +47,8 @@ struct PeoplePanelContent: View {
     @State private var showNotebook = false
     @State private var showNewPerson = false
     @State private var showBackup = false
+    @State private var showFullMap = false
+    @Namespace private var mapZoom
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -75,59 +63,33 @@ struct PeoplePanelContent: View {
     }
 
     private var filteredTerritories: [Territory] {
-        guard showTerritories else { return [] }
-        return territories.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+        territories.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
     }
 
-    /// People + territories merged, ordered by the chosen sort.
-    private var feed: [FeedItem] {
-        let items = filteredPeople.map(FeedItem.person) + filteredTerritories.map(FeedItem.territory)
+    private var sortedPeople: [Person] {
         switch sort {
-        case .recent:
-            return items.sorted { createdAt(of: $0) > createdAt(of: $1) }
-        case .nearest:
-            guard let userLocation else {
-                return items.sorted { createdAt(of: $0) > createdAt(of: $1) }
-            }
-            return items.sorted { distance(of: $0, from: userLocation) < distance(of: $1, from: userLocation) }
-        case .due:
-            return items.sorted { dueKey($0) < dueKey($1) }
-        case .name:
-            return items.sorted { nameKey($0).localizedCaseInsensitiveCompare(nameKey($1)) == .orderedAscending }
+        case .recent:  return filteredPeople.sorted { $0.createdAt > $1.createdAt }
+        case .nearest: return sortedByDistance(filteredPeople) { $0.coordinate }
+        case .due:     return filteredPeople.sorted { ($0.nextVisitDate ?? .distantFuture) < ($1.nextVisitDate ?? .distantFuture) }
+        case .name:    return filteredPeople.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
     }
 
-    private func dueKey(_ item: FeedItem) -> Date {
-        switch item {
-        case .person(let p): p.nextVisitDate ?? .distantFuture
-        case .territory: .distantFuture
+    private var sortedTerritories: [Territory] {
+        switch sort {
+        case .recent, .due: return filteredTerritories.sorted { $0.createdAt > $1.createdAt }
+        case .nearest:      return sortedByDistance(filteredTerritories) { $0.coordinate }
+        case .name:         return filteredTerritories.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
     }
 
-    private func nameKey(_ item: FeedItem) -> String {
-        switch item {
-        case .person(let p): p.name
-        case .territory(let t): t.name
+    private func sortedByDistance<T>(_ items: [T], _ coordinate: (T) -> CLLocationCoordinate2D?) -> [T] {
+        guard let userLocation else { return items }
+        func distance(_ item: T) -> CLLocationDistance {
+            guard let c = coordinate(item) else { return .greatestFiniteMagnitude }
+            return CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: userLocation)
         }
-    }
-
-    private func createdAt(of item: FeedItem) -> Date {
-        switch item {
-        case .person(let p): p.createdAt
-        case .territory(let t): t.createdAt
-        }
-    }
-
-    private func coordinate(of item: FeedItem) -> CLLocationCoordinate2D? {
-        switch item {
-        case .person(let p): p.coordinate
-        case .territory(let t): t.coordinate
-        }
-    }
-
-    private func distance(of item: FeedItem, from origin: CLLocation) -> CLLocationDistance {
-        guard let c = coordinate(of: item) else { return .greatestFiniteMagnitude }
-        return CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: origin)
+        return items.sorted { distance($0) < distance($1) }
     }
 
     /// Abbreviated, locale-aware distance ("0.3 mi") shown on a card when we know where you are.
@@ -148,41 +110,75 @@ struct PeoplePanelContent: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if feed.isEmpty && !addingTerritory {
-                    emptyState
-                } else {
-                    masonryFeed
-                }
-            }
-            // Inline search + sort + territory toggle, pinned above the feed.
-            .safeAreaInset(edge: .top, spacing: 0) { controlBar }
-            // Tap-to-chat with the notebook, pinned to the bottom of the panel.
-            .safeAreaInset(edge: .bottom) { notebookComposer }
-            .navigationTitle("People")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showBackup = true
-                    } label: {
-                        Image(systemName: "lock.doc")
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    mapPreview
+
+                    if addingTerritory {
+                        AddTerritoryInline(
+                            onCreated: { territory in
+                                addingTerritory = false
+                                selected = .territory(territory)
+                            },
+                            onCancel: { addingTerritory = false }
+                        )
                     }
-                    .accessibilityLabel("Backup & Restore")
+
+                    if sortedPeople.isEmpty && sortedTerritories.isEmpty && !addingTerritory {
+                        emptyState
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 40)
+                    } else {
+                        if !sortedPeople.isEmpty {
+                            sectionHeader("People")
+                            peopleMasonry
+                        }
+                        if !sortedTerritories.isEmpty {
+                            sectionHeader("Territories")
+                            territoryList
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 12)
+            }
+            .scrollDismissesKeyboard(.immediately)
+            .navigationTitle("People")
+            .searchable(text: $search, prompt: "Search people & territories")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showBackup = true } label: { Image(systemName: "lock.doc") }
+                        .accessibilityLabel("Backup & Restore")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("Sort by", selection: $sort) {
+                            ForEach(SortMode.allCases) { mode in
+                                Label(mode.label, systemImage: mode.symbol).tag(mode)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                    .accessibilityLabel("Sort")
                 }
             }
+            .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationDestination(item: $selected) { target in
                 switch target {
-                case .person(let person):
-                    PersonDetailView(person: person)
-                case .territory(let territory):
-                    TerritoryDetailView(territory: territory)
+                case .person(let person):       PersonDetailView(person: person)
+                case .territory(let territory):  TerritoryDetailView(territory: territory)
                 }
             }
             .navigationDestination(isPresented: $showNotebook) {
                 ConversationView(person: nil, autofocusInput: true)
                     .navigationTitle("Notebook")
                     .navigationBarTitleDisplayMode(.inline)
+            }
+            .fullScreenCover(isPresented: $showFullMap) {
+                ExploreView(onClose: { showFullMap = false })
+                    .navigationTransition(.zoom(sourceID: "peopleMap", in: mapZoom))
             }
             .sheet(isPresented: $showingScan) {
                 ScanTerritoryView { territory in
@@ -229,22 +225,137 @@ struct PeoplePanelContent: View {
         }
     }
 
-    // MARK: Add
+    // MARK: Map preview
+
+    /// A compact, rounded map centered on you. Tapping it expands to the full map with a zoom
+    /// transition; the expanded map carries an X to come back.
+    private var mapPreview: some View {
+        Button { showFullMap = true } label: {
+            Map(initialPosition: .userLocation(fallback: .automatic)) {
+                UserAnnotation()
+            }
+            .frame(height: 150)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .allowsHitTesting(false)
+            .overlay(alignment: .topTrailing) {
+                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.primary)
+                    .padding(8)
+                    .background(.regularMaterial, in: Circle())
+                    .padding(10)
+            }
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .matchedTransitionSource(id: "peopleMap", in: mapZoom)
+        .accessibilityLabel("Open full map")
+    }
+
+    // MARK: Sections
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.title3.weight(.bold))
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Two-column, image-forward masonry of people.
+    private var peopleMasonry: some View {
+        let columns = balanceIntoColumns(sortedPeople, height: estimatedHeight)
+        return HStack(alignment: .top, spacing: 12) {
+            peopleColumn(columns.left)
+            peopleColumn(columns.right)
+        }
+    }
+
+    private func peopleColumn(_ items: [Person]) -> some View {
+        LazyVStack(spacing: 12) {
+            ForEach(items) { personCard($0) }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private func personCard(_ person: Person) -> some View {
+        Button { selected = .person(person) } label: {
+            PersonGridCard(person: person,
+                           distanceText: distanceText(for: person.coordinate),
+                           heroHeight: heroHeight(for: person))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) { personToDelete = person } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+    }
+
+    /// Territories as their own single-column section.
+    private var territoryList: some View {
+        LazyVStack(spacing: 12) {
+            ForEach(sortedTerritories) { territory in
+                Button { selected = .territory(territory) } label: {
+                    TerritoryGridCard(territory: territory,
+                                      distanceText: distanceText(for: territory.coordinate))
+                }
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button(role: .destructive) { territoryToDelete = territory } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                }
+            }
+        }
+    }
+
+    /// A rough card height, used only to balance the two people columns (never for actual layout).
+    private func estimatedHeight(_ person: Person) -> CGFloat {
+        if person.coordinate != nil { return heroHeight(for: person) }
+        var h: CGFloat = 70
+        if !person.headline.isEmpty {
+            h += min((CGFloat(person.headline.count) / 22).rounded(.up), 5) * 18
+        }
+        if person.nextVisitDate != nil { h += 18 }
+        return h
+    }
+
+    /// Deterministic hero height per person so the stagger stays stable across launches.
+    private func heroHeight(for person: Person) -> CGFloat {
+        let options: [CGFloat] = [200, 250, 300]
+        return options[Int(person.id.uuid.0) % 3]
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView(
+            allEmpty ? "Nothing yet" : "No matches",
+            systemImage: allEmpty ? "person.2" : "magnifyingglass",
+            description: Text(emptyDescription)
+        )
+    }
+
+    private var emptyDescription: String {
+        if allEmpty {
+            return "Tell the notebook about a visit, or tap + to start a territory."
+        }
+        if !search.isEmpty {
+            return "Try a different search term."
+        }
+        return "Nothing to show."
+    }
+
+    // MARK: Add (bottom composer)
 
     /// Bottom composer: a leading add-menu, then a tap-to-chat field that opens the notebook
     /// scratchpad with the keyboard up. "New person" lands in that same scratchpad.
     private var notebookComposer: some View {
         HStack(spacing: 10) {
             Menu {
-                Button {
-                    showNewPerson = true
-                } label: { Label("New person", systemImage: "person.badge.plus") }
-                Button {
-                    withAnimation { addingTerritory = true }
-                } label: { Label("New territory", systemImage: "map") }
-                Button {
-                    showingScan = true
-                } label: { Label("Scan territory card", systemImage: "doc.text.viewfinder") }
+                Button { showNewPerson = true } label: { Label("New person", systemImage: "person.badge.plus") }
+                Button { withAnimation { addingTerritory = true } } label: { Label("New territory", systemImage: "map") }
+                Button { showingScan = true } label: { Label("Scan territory card", systemImage: "doc.text.viewfinder") }
             } label: {
                 Image(systemName: "plus")
             }
@@ -269,172 +380,6 @@ struct PeoplePanelContent: View {
         .padding(.horizontal)
         .padding(.vertical, 8)
         .background(.bar)
-    }
-
-    // MARK: Feed (masonry)
-
-    /// Two-column, image-forward masonry. Items are packed greedily into whichever column is
-    /// currently shorter (by estimated height), giving the staggered look without measuring.
-    private var masonryFeed: some View {
-        ScrollView {
-            VStack(spacing: 12) {
-                if addingTerritory {
-                    AddTerritoryInline(
-                        onCreated: { territory in
-                            addingTerritory = false
-                            selected = .territory(territory)
-                        },
-                        onCancel: { addingTerritory = false }
-                    )
-                }
-                let columns = balanceIntoColumns(feed, height: estimatedHeight)
-                HStack(alignment: .top, spacing: 12) {
-                    masonryColumn(columns.left)
-                    masonryColumn(columns.right)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 6)
-            .padding(.bottom, 10)
-        }
-    }
-
-    private func masonryColumn(_ items: [FeedItem]) -> some View {
-        LazyVStack(spacing: 12) {
-            ForEach(items) { gridCard(for: $0) }
-        }
-        .frame(maxWidth: .infinity, alignment: .top)
-    }
-
-    @ViewBuilder
-    private func gridCard(for item: FeedItem) -> some View {
-        switch item {
-        case .person(let person):
-            Button {
-                selected = .person(person)
-            } label: {
-                PersonGridCard(person: person,
-                               distanceText: distanceText(for: person.coordinate),
-                               heroHeight: heroHeight(for: person))
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive) { personToDelete = person } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        case .territory(let territory):
-            Button {
-                selected = .territory(territory)
-            } label: {
-                TerritoryGridCard(territory: territory,
-                                  distanceText: distanceText(for: territory.coordinate))
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
-                Button(role: .destructive) { territoryToDelete = territory } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-            }
-        }
-    }
-
-    /// A rough card height, used only to balance the two columns (never for actual layout).
-    private func estimatedHeight(_ item: FeedItem) -> CGFloat {
-        switch item {
-        case .person(let p):
-            // Photo cards: the image fills the card, so height ≈ the hero height.
-            if p.coordinate != nil { return heroHeight(for: p) }
-            // Text-only cards: name + headline + due.
-            var h: CGFloat = 70
-            if !p.headline.isEmpty {
-                h += min((CGFloat(p.headline.count) / 22).rounded(.up), 5) * 18
-            }
-            if p.nextVisitDate != nil { h += 18 }
-            return h
-        case .territory:
-            return 120                               // compact text tile
-        }
-    }
-
-    /// Deterministic hero height per person so the stagger stays stable across launches.
-    private func heroHeight(for person: Person) -> CGFloat {
-        let options: [CGFloat] = [200, 250, 300]
-        return options[Int(person.id.uuid.0) % 3]
-    }
-
-    private var emptyState: some View {
-        ContentUnavailableView(
-            allEmpty ? "Nothing yet" : "No matches",
-            systemImage: allEmpty ? "map" : "magnifyingglass",
-            description: Text(emptyDescription)
-        )
-    }
-
-    // MARK: Top controls
-
-    /// Inline search, a sort menu, and a show/hide-territories toggle — pinned above the list.
-    private var controlBar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search", text: $search)
-                    .textFieldStyle(.plain)
-                    .submitLabel(.search)
-                if !search.isEmpty {
-                    Button { search = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .glassEffect(in: Capsule())
-
-            Menu {
-                Picker("Sort by", selection: $sort) {
-                    ForEach(SortMode.allCases) { mode in
-                        Label(mode.label, systemImage: mode.symbol).tag(mode)
-                    }
-                }
-            } label: {
-                Image(systemName: "arrow.up.arrow.down")
-                    .frame(width: 40, height: 40)
-                    .glassEffect(in: Circle())
-            }
-            .accessibilityLabel("Sort")
-
-            Button {
-                withAnimation { showTerritories.toggle() }
-            } label: {
-                Image("Territory")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 20, height: 20)
-                    .foregroundStyle(showTerritories ? Color.accentColor : .secondary)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(in: Circle())
-            }
-            .accessibilityLabel(showTerritories ? "Hide territories" : "Show territories")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(.bar)
-    }
-
-    private var emptyDescription: String {
-        if allEmpty {
-            return "Tell the notebook about a visit, or tap + to start a territory."
-        }
-        if !search.isEmpty {
-            return "Try a different search term."
-        }
-        if !showTerritories {
-            return "Territories are hidden — tap the map button to show them."
-        }
-        return "Nothing to show."
     }
 
     // MARK: Location + delete
