@@ -1,9 +1,12 @@
 import XCTest
 
-/// End-to-end UI tests driven through the chat. Each launch passes "-uitesting" so the app uses
-/// a fresh in-memory store (tests don't see each other's data) and skips the notification prompt.
-/// Bot replies and person rows carry accessibility identifiers so we can wait on them instead of
-/// sleeping. Works whether the on-device model runs or the heuristic fallback is used.
+/// End-to-end UI tests driven through the notebook chat. Each launch passes "-uitesting" so the app
+/// uses a fresh in-memory store (tests don't see each other's data) and skips the notification
+/// prompt. Bot replies and person rows carry accessibility identifiers so we can wait on them
+/// instead of sleeping. Works whether the on-device model runs or the heuristic fallback is used.
+///
+/// Layout note: the app opens on the Map tab. People live on their own People tab, and the notebook
+/// chat is reached from there via the "Jot a note" composer.
 final class RVUITests: XCTestCase {
 
     override func setUp() {
@@ -26,16 +29,28 @@ final class RVUITests: XCTestCase {
         if start.waitForExistence(timeout: 5) { start.tap() }
     }
 
-    private func composer(_ app: XCUIApplication) -> XCUIElement {
-        app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+    /// The notebook chat lives behind People → "Jot a note". Opens it so the composer is on screen.
+    private func openComposer(_ app: XCUIApplication) {
+        app.buttons["People"].firstMatch.tap()
+        let jot = app.buttons["Jot a note"]
+        if jot.waitForExistence(timeout: 5) {
+            jot.tap()
+        } else {
+            app.staticTexts["Jot a note"].tap()
+        }
     }
 
-    /// Types a message and submits it — by the Return key or the send button.
+    /// Types a message into the chat composer and submits it — by the Return key or the send button.
+    /// Assumes `openComposer` has already opened the notebook chat.
     private func send(_ app: XCUIApplication, _ text: String, viaReturn: Bool = false) {
-        let field = composer(app)
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "Composer should be present")
-        field.tap()
-        field.typeText(viaReturn ? text + "\n" : text)
+        // The "Note…" composer is a text field, or a text view when it has wrapped to multiple lines.
+        let field = app.textFields["Note…"]
+        let multiline = app.textViews["Note…"]
+        XCTAssertTrue(field.waitForExistence(timeout: 6) || multiline.waitForExistence(timeout: 6),
+                      "Composer should be present")
+        let composer = field.exists ? field : multiline
+        composer.tap()
+        composer.typeText(viaReturn ? text + "\n" : text)
         if !viaReturn { app.buttons["arrow.up.circle.fill"].firstMatch.tap() }
     }
 
@@ -59,10 +74,15 @@ final class RVUITests: XCTestCase {
                    thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.75)))
     }
 
-    /// People now live in the bottom sheet on the Map tab.
+    /// Shows the People feed: switches to the People tab — and, since re-selecting the active tab
+    /// pops its stack, this also brings the chat back to the feed. Falls back to a Back tap.
     private func openPeople(_ app: XCUIApplication) {
         dismissKeyboard(app)
-        app.buttons["Map"].tap()
+        app.buttons["People"].firstMatch.tap()
+        if !app.navigationBars["People"].waitForExistence(timeout: 3) {
+            let back = app.navigationBars.buttons.element(boundBy: 0)
+            if back.exists { back.tap() }
+        }
     }
 
     private func peopleRows(_ app: XCUIApplication, named name: String) -> Int {
@@ -77,6 +97,7 @@ final class RVUITests: XCTestCase {
     /// Typing a note and pressing Return submits it and the engine files a page for the person.
     func testReturnKeySubmitsAndFilesVisit() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria at 12 Oak Street. Go back Saturday.", viaReturn: true)
         XCTAssertTrue(waitForReplies(app), "The bot should reply after a Return submit")
 
@@ -88,6 +109,7 @@ final class RVUITests: XCTestCase {
     /// The send button path also files a visit and shows a confirming reply.
     func testSendButtonFilesVisit() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Visited John, talked about the resurrection. Return in 3 days.")
         XCTAssertTrue(waitForReplies(app), "The bot should reply after tapping send")
 
@@ -99,6 +121,7 @@ final class RVUITests: XCTestCase {
     /// Editing an existing person updates them in place rather than creating a duplicate.
     func testEditingInterestDoesNotCreateDuplicate() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria at 12 Oak Street")
         XCTAssertTrue(waitForReplies(app, count: 1))
 
@@ -114,6 +137,7 @@ final class RVUITests: XCTestCase {
     /// Renaming through chat changes the existing person's name (no duplicate left behind).
     func testRenameUpdatesPersonInPlace() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria at 12 Oak Street")
         XCTAssertTrue(waitForReplies(app, count: 1))
 
@@ -129,6 +153,7 @@ final class RVUITests: XCTestCase {
     /// A People row opens that person's detail page.
     func testPersonRowOpensDetail() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria at 12 Oak Street, Springfield")
         XCTAssertTrue(waitForReplies(app))
 
@@ -140,13 +165,14 @@ final class RVUITests: XCTestCase {
         // The detail opens inside the panel; its inline title is the person's name.
         XCTAssertTrue(app.navigationBars["Maria"].waitForExistence(timeout: 5),
                       "Tapping a person opens their page")
-        XCTAssertTrue(app.staticTexts["Chat about Maria"].exists,
-                      "The detail page shows the per-person chat link")
+        XCTAssertTrue(app.staticTexts["Note or ask…"].waitForExistence(timeout: 3),
+                      "The detail page shows its per-person chat bar")
     }
 
     /// Asking for a recap produces a second bot reply.
     func testSummarizeProducesReply() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria, talked about hope")
         XCTAssertTrue(waitForReplies(app, count: 1))
 
@@ -154,27 +180,27 @@ final class RVUITests: XCTestCase {
         XCTAssertTrue(waitForReplies(app, count: 2), "Summarize should produce a reply")
     }
 
-    /// The Notebook and Map tabs have no navigation title bar (a deliberate design choice).
-    func testNotebookAndMapHaveNoNavTitle() throws {
+    /// The Map tab is full-bleed — it deliberately shows no navigation title bar.
+    func testMapTabHasNoNavTitle() throws {
         let app = launch()
-        XCTAssertFalse(app.navigationBars["Return Visits"].exists,
-                       "The Notebook tab should not show a nav title")
-
-        app.buttons["Map"].tap()
+        app.buttons["Map"].firstMatch.tap()
         XCTAssertFalse(app.navigationBars["Map"].exists,
                        "The Map tab should not show a nav title")
+        XCTAssertFalse(app.navigationBars["Return Visits"].exists,
+                       "There is no legacy Notebook title")
     }
 
-    /// The combined Map tab opens with the people bottom sheet, and the tab bar stays put.
-    func testMapTabShowsPeopleSheet() throws {
+    /// A filed visit shows up on the People tab, and the tab bar persists across tabs.
+    func testPeopleTabListsFiledPerson() throws {
         let app = launch()
+        openComposer(app)
         send(app, "Met Maria at 12 Oak Street, Springfield")
         XCTAssertTrue(waitForReplies(app))
 
-        dismissKeyboard(app)
-        app.buttons["Map"].tap()
+        openPeople(app)
         XCTAssertTrue(app.staticTexts["Maria"].waitForExistence(timeout: 10),
-                      "The people sheet on the Map tab lists Maria")
-        XCTAssertTrue(app.buttons["Notebook"].exists, "The tab bar stays put on the Map tab")
+                      "The People tab lists Maria")
+        XCTAssertTrue(app.buttons["Map"].exists && app.buttons["Schedule"].exists,
+                      "The tab bar stays put across tabs")
     }
 }

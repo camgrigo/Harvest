@@ -13,16 +13,22 @@ final class ChatMessage {
     var isCleared: Bool = false
     /// The person this message belongs to, or nil for the general notebook chat.
     var person: Person? = nil
+    /// When this assistant reply created or changed a person, the id of that person — so the chat can
+    /// render a tappable card for it. Kept by id (not a relationship) so it's independent of the
+    /// thread's `person` and survives that person later being deleted.
+    var cardPersonID: UUID? = nil
 
     init(date: Date = .now,
          text: String,
          isFromUser: Bool,
          isCleared: Bool = false,
-         person: Person? = nil) {
+         person: Person? = nil,
+         cardPersonID: UUID? = nil) {
         self.date = date
         self.text = text
         self.isFromUser = isFromUser
         self.isCleared = isCleared
         self.person = person
+        self.cardPersonID = cardPersonID
     }
 }

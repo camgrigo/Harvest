@@ -44,6 +44,21 @@ enum NotebookEngine {
         }
     }
 
+    /// The person a just-applied message created or changed (if any), so the chat can surface a
+    /// tappable card for it. Resolved by name *after* `apply` has run — for a rename, by the new
+    /// name. Query intents (due lists, summaries) have no single subject and return nil.
+    static func subject(for parsed: ParsedMessage, context: ModelContext) -> Person? {
+        switch parsed.intent {
+        case .editPerson:
+            let name = parsed.newName.isEmpty ? parsed.personName : parsed.newName
+            return existingPerson(named: name, context: context)
+        case .logVisit, .setReminder, .setAddress, .other:
+            return existingPerson(named: parsed.personName, context: context)
+        case .summarizePerson, .listDue, .summarizeDue:
+            return nil
+        }
+    }
+
     // MARK: Searching / setting an address
 
     private static func setAddress(_ parsed: ParsedMessage, context: ModelContext) async -> String {

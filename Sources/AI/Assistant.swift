@@ -14,6 +14,10 @@ final class Assistant {
         return false
     }
 
+    /// In UI tests, force the deterministic offline parser so end-to-end flows don't hinge on the
+    /// model's (non-deterministic) output — paralleling the in-memory store the harness already uses.
+    static let isUITesting = ProcessInfo.processInfo.arguments.contains("-uitesting")
+
     /// A friendly explanation when the model can't run, or nil when it can.
     static var unavailabilityReason: String? {
         switch SystemLanguageModel.default.availability {
@@ -66,7 +70,7 @@ final class Assistant {
     // MARK: Parsing
 
     func parse(_ text: String) async -> ParsedMessage {
-        guard Self.isModelAvailable else { return FallbackParser.parse(text) }
+        guard Self.isModelAvailable, !Self.isUITesting else { return FallbackParser.parse(text) }
         let session = LanguageModelSession(instructions: parsingInstructions())
         do {
             return try await session.respond(to: text, generating: ParsedMessage.self).content

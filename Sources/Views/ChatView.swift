@@ -40,6 +40,8 @@ struct ConversationView: View {
     @State private var revealed = ""
     @State private var genTask: Task<Void, Never>?
     @State private var atBottom = true
+    /// When a transcript card is tapped, the person whose page to push.
+    @State private var openedPerson: Person?
 
     private var messages: [ChatMessage] {
         ChatThread.messages(in: allMessages, person: person, includeCleared: showCleared)
@@ -52,6 +54,13 @@ struct ConversationView: View {
     }
     private var isGenerating: Bool { isThinking || streamingID != nil }
 
+    /// The person a card should represent for this message, resolved from the live people query so
+    /// the card gains its photo and due date once background enrichment lands.
+    private func cardPerson(for message: ChatMessage) -> Person? {
+        guard let id = message.cardPersonID else { return nil }
+        return people.first { $0.id == id }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let reason = Assistant.unavailabilityReason {
@@ -62,6 +71,9 @@ struct ConversationView: View {
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) { menu }
+        }
+        .navigationDestination(item: $openedPerson) { person in
+            PersonDetailView(person: person)
         }
         .task {
             // Let the push animation settle before raising the keyboard.
@@ -104,9 +116,11 @@ struct ConversationView: View {
                         MessageRow(
                             message: message,
                             streamedText: message.persistentModelID == streamingID ? revealed : nil,
+                            cardPerson: cardPerson(for: message),
                             canRegenerate: isRegenerable(message),
                             onCopy: { copy(message) },
-                            onRegenerate: { regenerate(message) }
+                            onRegenerate: { regenerate(message) },
+                            onOpenPerson: { openedPerson = $0 }
                         )
                         .id(message.id)
                     }
@@ -324,7 +338,14 @@ struct ConversationView: View {
 
         isThinking = false
         let bot = record(reply, fromUser: false)
-        await reveal(bot)
+        // If this reply created or changed a person, surface a tappable card for them instead of
+        // leaning on the text. Card-forward replies appear at once rather than streaming in.
+        if let subject = NotebookEngine.subject(for: parsed, context: context) {
+            bot.cardPersonID = subject.id
+            context.saveIfPossible()
+        } else {
+            await reveal(bot)
+        }
     }
 
     /// Word-by-word reveal of a finished reply, so it streams in like a live answer. Cancelling
@@ -426,9 +447,12 @@ private struct MessageRow: View {
     let message: ChatMessage
     /// Non-nil while this assistant message is streaming in; shows the partial text.
     let streamedText: String?
+    /// When set, the reply is shown as a tappable person card — visual feedback for a change.
+    let cardPerson: Person?
     let canRegenerate: Bool
     let onCopy: () -> Void
     let onRegenerate: () -> Void
+    let onOpenPerson: (Person) -> Void
 
     var body: some View {
         if message.isFromUser {
@@ -466,7 +490,21 @@ private struct MessageRow: View {
 
     @ViewBuilder
     private var content: some View {
-        if let streamedText {
+        if let cardPerson {
+            VStack(alignment: .leading, spacing: 8) {
+                Button { onOpenPerson(cardPerson) } label: {
+                    PersonGridCard(person: cardPerson, distanceText: nil, heroHeight: 150)
+                        .frame(maxWidth: 250)
+                }
+                .buttonStyle(.plain)
+                if !message.text.isEmpty {
+                    Text(message.text)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
+            }
+        } else if let streamedText {
             Text("\(streamedText)\(Text(" ▍").foregroundStyle(.secondary))")
                 .textSelection(.enabled)
         } else {

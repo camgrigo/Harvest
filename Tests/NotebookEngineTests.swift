@@ -93,6 +93,38 @@ final class NotebookEngineTests: XCTestCase {
         XCTAssertTrue(maria.entries.first!.text.contains("suffer"))
     }
 
+    // MARK: Card subject resolution
+
+    func testSubjectResolvesLoggedPerson() async throws {
+        let context = try makeContext()
+        let parsed = ParsedMessage(intent: .logVisit, personName: "Maria", address: "",
+                                   note: "Talked", followUpDate: "", interest: .interested)
+        _ = await NotebookEngine.apply(parsed, original: "Met Maria",
+                                       assistant: Assistant(), context: context)
+        XCTAssertEqual(NotebookEngine.subject(for: parsed, context: context)?.name, "Maria",
+                       "The logged person is the card subject")
+    }
+
+    func testSubjectResolvesRenamedPerson() async throws {
+        let context = try makeContext()
+        context.insert(Person(name: "Maria"))
+        let parsed = ParsedMessage(intent: .editPerson, personName: "Maria", address: "",
+                                   note: "Rename Maria to Marie", followUpDate: "",
+                                   interest: .unknown, newName: "Marie")
+        _ = await NotebookEngine.apply(parsed, original: "Rename Maria to Marie",
+                                       assistant: Assistant(), context: context)
+        XCTAssertEqual(NotebookEngine.subject(for: parsed, context: context)?.name, "Marie",
+                       "After a rename, the subject is found by the new name")
+    }
+
+    func testSubjectNilForQueryIntents() throws {
+        let context = try makeContext()
+        let parsed = ParsedMessage(intent: .listDue, personName: "", address: "",
+                                   note: "who's due", followUpDate: "", interest: .unknown)
+        XCTAssertNil(NotebookEngine.subject(for: parsed, context: context),
+                     "A due-list query has no single subject")
+    }
+
     func testApplyLogVisitSetsSmartReminderWhenNoneGiven() async throws {
         let context = try makeContext()
         let parsed = ParsedMessage(intent: .logVisit, personName: "John", address: "",
