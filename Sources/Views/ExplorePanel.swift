@@ -62,6 +62,7 @@ struct PeoplePanelContent: View {
     @State private var showNotebook = false
     @State private var showSettings = false
     @State private var showPlans = false
+    @State private var showNewPerson = false
 
     private var allEmpty: Bool { people.isEmpty && territories.isEmpty }
 
@@ -192,6 +193,9 @@ struct PeoplePanelContent: View {
             }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showPlans) { ServicePlansView() }
+            .sheet(isPresented: $showNewPerson) {
+                NewPersonView { person in selected = .person(person) }
+            }
             .alert(
                 "Delete \(personToDelete?.name ?? "")?",
                 isPresented: Binding(get: { personToDelete != nil },
@@ -235,7 +239,7 @@ struct PeoplePanelContent: View {
         HStack(spacing: 10) {
             Menu {
                 Button {
-                    showNotebook = true
+                    showNewPerson = true
                 } label: { Label("New person", systemImage: "person.badge.plus") }
                 Button {
                     withAnimation { addingTerritory = true }
