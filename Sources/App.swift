@@ -5,6 +5,9 @@ import BackgroundTasks
 @main
 struct HarvestApp: App {
     let container: ModelContainer
+    /// True when launched by the UI test runner; background tasks are neither registered nor
+    /// submitted in that mode (submitting an unregistered identifier crashes).
+    private let uiTesting: Bool
     @StateObject private var notifications = NotificationCoordinator()
 
     /// The background task that writes a ~daily encrypted backup to iCloud Drive. Listed in
@@ -15,6 +18,7 @@ struct HarvestApp: App {
         // UI tests pass "-uitesting" so each launch starts from a clean, ephemeral store.
         // Normal launches share one container with the App Intents (Siri / Shortcuts).
         let uiTesting = ProcessInfo.processInfo.arguments.contains("-uitesting")
+        self.uiTesting = uiTesting
         container = uiTesting ? AppModelContainer.make(inMemory: true) : AppModelContainer.shared
         if !uiTesting {
             registerBackgroundTasks(container: container)
@@ -26,7 +30,7 @@ struct HarvestApp: App {
             RootView()
                 .environmentObject(notifications)
                 .task { notifications.activate() }
-                .task { Self.scheduleAutoBackupTask() }
+                .task { if !uiTesting { Self.scheduleAutoBackupTask() } }
         }
         .modelContainer(container)
     }
