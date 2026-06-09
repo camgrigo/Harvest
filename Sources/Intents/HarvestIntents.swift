@@ -57,6 +57,94 @@ struct WhoIsDueIntent: AppIntent {
     }
 }
 
+/// Add a note to a person's page — finds them by name, or starts a page if they're new.
+struct AddNoteIntent: AppIntent {
+    static let title: LocalizedStringResource = "Add a Note"
+    static let description = IntentDescription("Adds a note to a person's page in Harvest.")
+
+    @Parameter(title: "Name", requestValueDialog: "Whose page is this note for?")
+    var name: String
+
+    @Parameter(title: "Note", requestValueDialog: "What's the note?")
+    var note: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Add a note to \(\.$name)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+        let person = NotebookEngine.findOrCreatePerson(
+            named: name.trimmingCharacters(in: .whitespacesAndNewlines), context: context)
+        context.insert(JournalEntry(text: note, person: person))
+        try context.save()
+        return .result(dialog: "Added a note to \(person.name).")
+    }
+}
+
+/// Log a not-at-home (a door where no one answered) into your current territory.
+struct LogNotAtHomeIntent: AppIntent {
+    static let title: LocalizedStringResource = "Log a Not-at-Home"
+    static let description = IntentDescription(
+        "Records a door where no one answered, in your most recently worked territory.")
+
+    @Parameter(title: "Address", requestValueDialog: "What's the address?")
+    var address: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Log a not-at-home at \(\.$address)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+        let territory = Self.currentTerritory(in: context)
+        let door = NotAtHome(address: address.trimmingCharacters(in: .whitespacesAndNewlines))
+        context.insert(door)
+        door.territory = territory
+        territory.touch()
+        try context.save()
+        return .result(dialog: "Logged a not-at-home at \(door.address) in \(territory.name).")
+    }
+
+    /// The most recently worked territory, or a freshly created default one.
+    @MainActor
+    private static func currentTerritory(in context: ModelContext) -> Territory {
+        let all = (try? context.fetch(FetchDescriptor<Territory>())) ?? []
+        if let recent = all.max(by: {
+            ($0.lastWorkedAt ?? $0.createdAt) < ($1.lastWorkedAt ?? $1.createdAt)
+        }) {
+            return recent
+        }
+        let territory = Territory(name: "My Territory")
+        context.insert(territory)
+        return territory
+    }
+}
+
+/// Start a new house-to-house territory.
+struct StartTerritoryIntent: AppIntent {
+    static let title: LocalizedStringResource = "Start a Territory"
+    static let description = IntentDescription("Creates a new house-to-house territory in Harvest.")
+
+    @Parameter(title: "Name", requestValueDialog: "What should the territory be called?")
+    var name: String
+
+    static var parameterSummary: some ParameterSummary {
+        Summary("Start a territory called \(\.$name)")
+    }
+
+    @MainActor
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let context = AppModelContainer.shared.mainContext
+        let territory = Territory(name: name.trimmingCharacters(in: .whitespacesAndNewlines))
+        context.insert(territory)
+        try context.save()
+        return .result(dialog: "Started the territory \(territory.name).")
+    }
+}
+
 /// Registers spoken phrases so Siri and Spotlight surface these with no setup from the user.
 struct HarvestShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -79,6 +167,33 @@ struct HarvestShortcuts: AppShortcutsProvider {
             ],
             shortTitle: "Who's Due",
             systemImageName: "calendar.badge.clock"
+        )
+        AppShortcut(
+            intent: AddNoteIntent(),
+            phrases: [
+                "Add a note in \(.applicationName)",
+                "Note a visit in \(.applicationName)"
+            ],
+            shortTitle: "Add a Note",
+            systemImageName: "note.text.badge.plus"
+        )
+        AppShortcut(
+            intent: LogNotAtHomeIntent(),
+            phrases: [
+                "Log a not-at-home in \(.applicationName)",
+                "No one answered in \(.applicationName)"
+            ],
+            shortTitle: "Log Not-at-Home",
+            systemImageName: "door.left.hand.closed"
+        )
+        AppShortcut(
+            intent: StartTerritoryIntent(),
+            phrases: [
+                "Start a territory in \(.applicationName)",
+                "New territory in \(.applicationName)"
+            ],
+            shortTitle: "Start a Territory",
+            systemImageName: "map"
         )
     }
 }
