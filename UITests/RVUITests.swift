@@ -180,14 +180,11 @@ final class RVUITests: XCTestCase {
         XCTAssertTrue(waitForReplies(app, count: 2), "Summarize should produce a reply")
     }
 
-    /// The Map tab is full-bleed — it deliberately shows no navigation title bar.
-    func testMapTabHasNoNavTitle() throws {
+    /// The Map tab was removed — the map is reached via a preview on the People tab.
+    func testMapPreviewIsOnPeopleTab() throws {
         let app = launch()
-        app.buttons["Map"].firstMatch.tap()
-        XCTAssertFalse(app.navigationBars["Map"].exists,
-                       "The Map tab should not show a nav title")
-        XCTAssertFalse(app.navigationBars["Return Visits"].exists,
-                       "There is no legacy Notebook title")
+        XCTAssertTrue(app.buttons["Open full map"].waitForExistence(timeout: 5),
+                      "The People tab shows a tappable map preview")
     }
 
     /// A filed visit shows up on the People tab, and the tab bar persists across tabs.
@@ -200,7 +197,7 @@ final class RVUITests: XCTestCase {
         openPeople(app)
         XCTAssertTrue(app.staticTexts["Maria"].waitForExistence(timeout: 10),
                       "The People tab lists Maria")
-        XCTAssertTrue(app.buttons["Map"].exists && app.buttons["Calendar"].exists,
+        XCTAssertTrue(app.buttons["People"].exists && app.buttons["Calendar"].exists,
                       "The tab bar stays put across tabs")
     }
 }

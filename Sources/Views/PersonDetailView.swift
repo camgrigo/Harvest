@@ -81,6 +81,7 @@ struct PersonDetailView: View {
         }
         .task(id: coordKey) { await loadLookAround() }
         .safeAreaInset(edge: .bottom) { composerBar }
+        .tint(person.theme.color)
     }
 
     // MARK: Share

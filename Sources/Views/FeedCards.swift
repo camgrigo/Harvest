@@ -238,15 +238,11 @@ struct PersonGridCard: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(person.theme.color.opacity(0.85), lineWidth: 2.5)
-                )
                 .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
         } else {
-            // No photo: a solid text tile, framed in the person's theme color.
+            // No photo: a solid text tile.
             content(onImage: false)
-                .feedCardSurface(borderColor: person.theme.color.opacity(0.55), borderWidth: 1.5)
+                .feedCardSurface()
         }
     }
 
@@ -258,7 +254,7 @@ struct PersonGridCard: View {
                     if let label = topLabel {
                         Text(label.text)
                             .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
-                                                     : (person.isDue ? Color.red : person.theme.color))
+                                                     : label.color)
                     }
                     Spacer(minLength: 0)
                     if let distanceText {

@@ -148,7 +148,7 @@ struct PeoplePanelContent: View {
             .searchable(text: $search, prompt: "Search people & territories")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showBackup = true } label: { Image(systemName: "lock.doc") }
+                    Button { showBackup = true } label: { Image(systemName: "icloud.and.arrow.down") }
                         .accessibilityLabel("Backup & Restore")
                 }
                 ToolbarItem(placement: .topBarTrailing) {

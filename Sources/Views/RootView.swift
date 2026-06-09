@@ -15,9 +15,6 @@ struct RootView: View {
 
     var body: some View {
         TabView {
-            Tab("Map", systemImage: "map.fill") {
-                ExploreView()
-            }
             Tab("People", systemImage: "person.2.fill") {
                 PeoplePanelContent()
             }
