@@ -28,6 +28,22 @@ enum MapLook: String, CaseIterable, Identifiable {
         case .satellite: "Satellite"
         }
     }
+    /// Glyph shown on the on-map look button and in the chooser tiles.
+    var symbol: String {
+        switch self {
+        case .standard:  "map.fill"
+        case .hybrid:    "square.2.layers.3d"
+        case .satellite: "globe.americas.fill"
+        }
+    }
+    /// Representative swatch color for the chooser tile.
+    var swatch: Color {
+        switch self {
+        case .standard:  .green
+        case .hybrid:    .teal
+        case .satellite: .brown
+        }
+    }
 }
 
 /// The Map tab: a full-bleed map of your located people and territories, with a horizontally
@@ -47,6 +63,8 @@ struct ExploreView: View {
     /// The map's current visible region, tracked so the Nearby strip reflects what's on screen.
     @State private var visibleRegion: MKCoordinateRegion?
     @AppStorage("map.look") private var mapLook: MapLook = .standard
+    /// Whether the Maps-style "choose a look" panel is open.
+    @State private var showLookChooser = false
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -58,6 +76,7 @@ struct ExploreView: View {
         NavigationStack {
             map
                 .overlay(alignment: .bottom) { nearbyStrip }
+                .overlay(alignment: .topLeading) { lookButton }
                 .navigationDestination(item: $selected) { target in
                     switch target {
                     case .person(let person):       PersonDetailView(person: person)
@@ -128,6 +147,58 @@ struct ExploreView: View {
         case .hybrid:    .hybrid(elevation: .flat)
         case .satellite: .imagery(elevation: .flat)
         }
+    }
+
+    // MARK: Look chooser
+
+    /// A floating circular control (like Maps' look button) that opens the style chooser.
+    /// Shows the active look's glyph so the button reflects the current map style.
+    private var lookButton: some View {
+        Button { showLookChooser = true } label: {
+            Image(systemName: mapLook.symbol)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+        }
+        .padding(.leading, 12)
+        .padding(.top, 8)
+        .popover(isPresented: $showLookChooser) {
+            lookChooser.presentationCompactAdaptation(.popover)
+        }
+    }
+
+    /// A row of selectable look tiles, mirroring the Maps "Choose Map" panel.
+    private var lookChooser: some View {
+        HStack(spacing: 14) {
+            ForEach(MapLook.allCases) { look in
+                Button {
+                    mapLook = look
+                    showLookChooser = false
+                } label: {
+                    VStack(spacing: 7) {
+                        Image(systemName: look.symbol)
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .frame(width: 60, height: 60)
+                            .background(look.swatch.gradient,
+                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(mapLook == look ? Color.accentColor : .clear,
+                                                  lineWidth: 3)
+                            }
+                        Text(look.label)
+                            .font(.caption)
+                            .fontWeight(mapLook == look ? .semibold : .regular)
+                            .foregroundStyle(mapLook == look ? Color.accentColor : .primary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(18)
     }
 
     // MARK: Nearby strip
