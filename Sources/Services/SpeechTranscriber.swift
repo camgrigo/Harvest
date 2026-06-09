@@ -39,6 +39,9 @@ final class SpeechTranscriber: ObservableObject {
 
             let input = engine.inputNode
             let format = input.outputFormat(forBus: 0)
+            // iOS 27 deprecates this for installTapOnBus:bufferSize:format:error:block:, but that
+            // replacement is NS_REFINED_FOR_SWIFT with no clean Swift wrapper in the current beta
+            // (only the raw __installTap with an NSError pointer). Keep this until the wrapper ships.
             input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
                 self?.request?.append(buffer)
             }

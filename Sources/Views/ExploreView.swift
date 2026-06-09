@@ -35,10 +35,8 @@ struct ExploreView: View {
     @State private var detent: PresentationDetent = .medium
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
-    /// Live height of the bottom sheet, reported by the panel — the control cluster rides on top of it.
+    /// Live height of the bottom sheet, reported by the panel (kept so the map insets above it).
     @State private var sheetHeight: CGFloat = 168
-    /// Latest settled map camera, tracked so the control cluster can read and adjust heading + pitch.
-    @State private var mapCamera: MapCamera?
 
     /// The default map view never zooms out past this radius around you.
     private static let maxDefaultRadius: CLLocationDistance = 30 * 1609.34   // 30 miles
@@ -55,10 +53,6 @@ struct ExploreView: View {
 
     var body: some View {
         map
-            // A glass control container (compass · 3D · locate) that floats just above the sheet and
-            // rides with it, Apple Maps style — overlaid here (outside the map's content insets) so
-            // it tracks the true screen bottom.
-            .overlay(alignment: .bottomTrailing) { mapControlCluster }
             .onAppear { locationManager.requestWhenInUseAuthorization() }
             .task {
                 // On first load, frame everyone within 30 miles of you (capped at that radius).
@@ -168,101 +162,15 @@ struct ExploreView: View {
                         .tint(.green)
                 }
             }
-            // Hide the default top-trailing controls — compass, 3D, and locate all live in the
-            // custom glass cluster that rides above the sheet (see `mapControlCluster`).
-            .mapControls { }
-            .onMapCameraChange(frequency: .onEnd) { context in
-                mapCamera = context.camera
+            // Standard SwiftUI map controls (location, 2D/3D pitch, compass) — legible, system-styled.
+            .mapControls {
+                MapUserLocationButton()
+                MapPitchToggle()
+                MapCompass()
             }
             .gesture(dropPinGesture(proxy))
             // Keep the bottom clear of the resting sheet.
             .safeAreaPadding(.bottom, 168)
-        }
-    }
-
-    /// A single glass container holding the map controls — compass (only when rotated), a 2D/3D
-    /// tilt toggle, and "center on me". It floats just above the bottom sheet and rides up/down with
-    /// it via the sheet height the panel reports. Hidden when the sheet is full-screen.
-    private var mapControlCluster: some View {
-        VStack(spacing: 0) {
-            if let cam = mapCamera, cam.heading > 1, cam.heading < 359 {
-                clusterButton({ setHeading(0) }) {
-                    Image(systemName: "location.north.fill")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.red)
-                        .rotationEffect(.degrees(-cam.heading))
-                }
-                .accessibilityLabel("Point north")
-                Divider().frame(width: 26)
-            }
-            clusterButton(togglePitch) {
-                Text(isPitched ? "2D" : "3D")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(.tint)
-            }
-            .accessibilityLabel(isPitched ? "Flatten map" : "Tilt map")
-            Divider().frame(width: 26)
-            clusterButton(recenter) {
-                Image(systemName: "location.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.tint)
-            }
-            .accessibilityLabel("Center on my location")
-        }
-        .glassEffect(in: RoundedRectangle(cornerRadius: 22))
-        .padding(.trailing, 12)
-        .padding(.bottom, sheetHeight + 12)
-        .opacity(detent == .large ? 0 : 1)
-        .allowsHitTesting(detent != .large)
-        .animation(.easeInOut(duration: 0.2), value: sheetHeight)
-        .animation(.easeInOut(duration: 0.25), value: detent)
-        .animation(.spring(duration: 0.3), value: mapCamera?.heading)
-    }
-
-    /// One control in the cluster: a 44×44 tappable icon (the container provides the glass).
-    private func clusterButton<Label: View>(_ action: @escaping () -> Void,
-                                            @ViewBuilder label: () -> Label) -> some View {
-        Button(action: action) {
-            label()
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var isPitched: Bool { (mapCamera?.pitch ?? 0) > 1 }
-
-    /// Rotate the map to a fixed heading — used to snap back to north.
-    private func setHeading(_ heading: CLLocationDirection) {
-        guard let cam = mapCamera else { return }
-        withAnimation(.easeInOut) {
-            camera = .camera(MapCamera(centerCoordinate: cam.centerCoordinate,
-                                       distance: cam.distance, heading: heading, pitch: cam.pitch))
-        }
-    }
-
-    /// Toggle between a flat (2D) and tilted (3D) camera.
-    private func togglePitch() {
-        guard let cam = mapCamera else { return }
-        withAnimation(.easeInOut) {
-            camera = .camera(MapCamera(centerCoordinate: cam.centerCoordinate,
-                                       distance: cam.distance, heading: cam.heading,
-                                       pitch: isPitched ? 0 : 55))
-        }
-    }
-
-    /// Re-frame the map on the device's current location.
-    private func recenter() {
-        Task {
-            if let location = await locator.current() {
-                withAnimation(.easeInOut) {
-                    camera = .region(MKCoordinateRegion(
-                        center: location.coordinate,
-                        latitudinalMeters: 1200, longitudinalMeters: 1200))
-                }
-            } else {
-                withAnimation(.easeInOut) { camera = .userLocation(fallback: .automatic) }
-            }
         }
     }
 

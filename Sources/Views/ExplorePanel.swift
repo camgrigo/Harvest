@@ -163,7 +163,7 @@ struct PeoplePanelContent: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                    Button { showSettings = true } label: { Image(systemName: "gearshape.fill") }
                         .accessibilityLabel("Settings")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -248,7 +248,7 @@ struct PeoplePanelContent: View {
             } label: {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 30))
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(.white, Color.accentColor)
             }
             .accessibilityLabel("Add")
 

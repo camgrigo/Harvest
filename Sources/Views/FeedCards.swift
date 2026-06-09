@@ -159,18 +159,19 @@ struct PersonGridCard: View {
     var body: some View {
         if let coordinate = person.coordinate {
             // Located visit: the Look Around photo fills the whole card; text layers on top over a
-            // top-down scrim that keeps it legible.
+            // top-down scrim and carries a soft shadow so it stays legible on bright/busy photos.
             content(onImage: true)
+                .shadow(color: .black.opacity(0.5), radius: 3, x: 0, y: 1)
                 .padding(14)
                 .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .topLeading)
                 .background {
                     ZStack {
-                        RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
+                        RowLookAround(coordinate: coordinate, feather: false)
                         LinearGradient(
                             stops: [
-                                .init(color: .black.opacity(0.62), location: 0),
-                                .init(color: .black.opacity(0.20), location: 0.5),
-                                .init(color: .clear, location: 0.9),
+                                .init(color: .black.opacity(0.72), location: 0),
+                                .init(color: .black.opacity(0.34), location: 0.5),
+                                .init(color: .black.opacity(0.10), location: 0.9),
                             ],
                             startPoint: .top, endPoint: .bottom
                         )
@@ -188,11 +189,20 @@ struct PersonGridCard: View {
     @ViewBuilder
     private func content(onImage: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let label = topLabel {
-                Text(label.text)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
-                                             : label.color)
+            if topLabel != nil || distanceText != nil {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    if let label = topLabel {
+                        Text(label.text)
+                            .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
+                                                     : label.color)
+                    }
+                    Spacer(minLength: 0)
+                    if let distanceText {
+                        Text(distanceText)
+                            .foregroundStyle(onImage ? Color.white.opacity(0.95) : Color.secondary)
+                    }
+                }
+                .font(.caption.weight(.semibold))
             }
             Text(person.name)
                 .font(.title3.weight(.bold))
