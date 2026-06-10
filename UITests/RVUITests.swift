@@ -258,6 +258,52 @@ final class RVUITests: XCTestCase {
                       "Search lists the matching person")
     }
 
+    /// The map-style chooser opens and lists the three looks.
+    func testMapStyleChooserShowsLooks() throws {
+        let app = launch()
+        app.buttons["Open full map"].tap()
+        let style = app.buttons["Map style"]
+        XCTAssertTrue(style.waitForExistence(timeout: 5), "The map has a style control")
+        style.tap()
+        XCTAssertTrue(app.buttons["Satellite"].waitForExistence(timeout: 5), "Chooser lists Satellite")
+        XCTAssertTrue(app.buttons["Hybrid"].exists, "Chooser lists Hybrid")
+        XCTAssertTrue(app.buttons["Standard"].exists, "Chooser lists Standard")
+    }
+
+    /// Choosing a different map style closes the chooser and returns to the map.
+    func testMapStyleChooserSelectsSatellite() throws {
+        let app = launch()
+        app.buttons["Open full map"].tap()
+        app.buttons["Map style"].tap()
+        let satellite = app.buttons["Satellite"]
+        XCTAssertTrue(satellite.waitForExistence(timeout: 5))
+        satellite.tap()
+        XCTAssertTrue(app.buttons["Show everything"].waitForExistence(timeout: 5),
+                      "Choosing a style returns to the map")
+    }
+
+    /// The "today's trail" breadcrumb control toggles its accessibility label.
+    func testMapBreadcrumbToggles() throws {
+        let app = launch()
+        app.buttons["Open full map"].tap()
+        let show = app.buttons["Show today's trail"]
+        XCTAssertTrue(show.waitForExistence(timeout: 5), "Trail toggle starts as 'Show'")
+        show.tap()
+        XCTAssertTrue(app.buttons["Hide today's trail"].waitForExistence(timeout: 5),
+                      "Tapping flips it to 'Hide'")
+    }
+
+    /// "Show everything" re-frames the map without dismissing it.
+    func testMapShowEverythingStaysOnMap() throws {
+        let app = launch()
+        app.buttons["Open full map"].tap()
+        let frame = app.buttons["Show everything"]
+        XCTAssertTrue(frame.waitForExistence(timeout: 5))
+        frame.tap()
+        XCTAssertTrue(app.buttons["Close map"].waitForExistence(timeout: 3),
+                      "Still on the map after re-framing")
+    }
+
     /// A filed visit shows up on the People tab, and the tab bar persists across tabs.
     func testPeopleTabListsFiledPerson() throws {
         let app = launch()

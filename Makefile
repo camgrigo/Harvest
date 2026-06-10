@@ -19,7 +19,9 @@ XCB := xcodebuild -scheme $(SCHEME) -allowProvisioningUpdates
 UITESTS := testAppLaunchesWithoutCrashing testAccessibilityAudit testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
 	testEditingInterestDoesNotCreateDuplicate testRenameUpdatesPersonInPlace \
 	testPersonRowOpensDetail testSummarizeProducesReply testMapPreviewOpensAndCloses \
-	testMapSearchSheetOpensAndCancels testMapSearchFindsPerson testPeopleTabListsFiledPerson
+	testMapSearchSheetOpensAndCancels testMapSearchFindsPerson \
+	testMapStyleChooserShowsLooks testMapStyleChooserSelectsSatellite testMapBreadcrumbToggles \
+	testMapShowEverythingStaysOnMap testPeopleTabListsFiledPerson
 
 .PHONY: generate build build-device install launch test-unit test-ui clean help
 
