@@ -289,7 +289,11 @@ struct PersonGridCard: View {
                 }
                 .font(.caption.weight(.semibold))
             }
-            Text(person.name)
+            // Name, with the interest status as a trailing inline glyph (leaf / book / pause) —
+            // shown only when a status is set (".interested" reads as "None").
+            Text(person.interest == .interested
+                 ? "\(person.name)"
+                 : "\(person.name) \(Image(systemName: person.interest.symbol))")
                 .font(.title3.weight(.bold))
                 .fontDesign(person.nameFont.design)
                 .foregroundStyle(onImage ? Color.white : Color.primary)

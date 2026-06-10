@@ -621,7 +621,9 @@ struct ExploreView: View {
     /// The opening region: centered on you, sized to include the farthest person within 30 miles
     /// (padded), but never zoomed out beyond a 30-mile radius. Falls back to the people's spread.
     private func defaultRegion() async -> MKCoordinateRegion? {
-        let pins = located.compactMap(\.coordinate)
+        // Frame both located people AND territories — a nearby territory should anchor the view
+        // just as a person does.
+        let pins = (located.compactMap(\.coordinate) + locatedTerritories.compactMap(\.coordinate))
             .map { CLLocation(latitude: $0.latitude, longitude: $0.longitude) }
 
         let center: CLLocationCoordinate2D

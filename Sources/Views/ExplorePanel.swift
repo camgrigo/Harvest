@@ -171,8 +171,12 @@ struct PeoplePanelContent: View {
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationDestination(item: $selected) { target in
                 switch target {
-                case .person(let person):       PersonDetailView(person: person)
-                case .territory(let territory):  TerritoryDetailView(territory: territory)
+                case .person(let person):
+                    PersonDetailView(person: person)
+                        .navigationTransition(.zoom(sourceID: "person-\(person.id)", in: mapZoom))
+                case .territory(let territory):
+                    TerritoryDetailView(territory: territory)
+                        .navigationTransition(.zoom(sourceID: "territory-\(territory.id)", in: mapZoom))
                 }
             }
             .navigationDestination(isPresented: $showNotebook) {
@@ -320,6 +324,7 @@ struct PeoplePanelContent: View {
                            heroHeight: heroHeight(for: person))
         }
         .buttonStyle(.plain)
+        .matchedTransitionSource(id: "person-\(person.id)", in: mapZoom)
         .contextMenu {
             let others = duplicatePartners(of: person)
             if !others.isEmpty {
@@ -362,6 +367,7 @@ struct PeoplePanelContent: View {
                                       distanceText: distanceText(for: territory.coordinate))
                 }
                 .buttonStyle(.plain)
+                .matchedTransitionSource(id: "territory-\(territory.id)", in: mapZoom)
                 .contextMenu {
                     Button(role: .destructive) { territoryToDelete = territory } label: {
                         Label("Delete", systemImage: "trash")

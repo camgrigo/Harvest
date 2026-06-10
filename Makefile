@@ -16,7 +16,7 @@ DD_UI    := /tmp/harvest-dd-ui
 XCB := xcodebuild -scheme $(SCHEME) -allowProvisioningUpdates
 
 # UI tests to run individually (the device tunnel drops if many share one runner).
-UITESTS := testAppLaunchesWithoutCrashing testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
+UITESTS := testAppLaunchesWithoutCrashing testAccessibilityAudit testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
 	testEditingInterestDoesNotCreateDuplicate testRenameUpdatesPersonInPlace \
 	testPersonRowOpensDetail testSummarizeProducesReply testMapPreviewOpensAndCloses \
 	testMapSearchSheetOpensAndCancels testMapSearchFindsPerson testPeopleTabListsFiledPerson
