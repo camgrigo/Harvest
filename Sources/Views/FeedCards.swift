@@ -199,21 +199,19 @@ func territorySubtitle(_ territory: Territory) -> String {
 
 // MARK: - Card surface
 
+/// Corner radius for the people/territory list cells — large and continuous, matching the
+/// iOS 27 Siri tiles.
+let feedCardCornerRadius: CGFloat = 30
+
 private extension View {
-    /// The opaque, softly shadowed card surface shared by the Explore feed cards — modeled on the
-    /// iOS 26 Siri/Notes masonry: a solid rounded tile that lifts off the sheet with a gentle shadow.
-    func feedCardSurface(borderColor: Color = Color.primary.opacity(0.06),
-                         borderWidth: CGFloat = 0.5) -> some View {
+    /// The card surface shared by the people/territory list cells: Liquid Glass in a large,
+    /// continuous rounded rect (modeled on the iOS 27 Siri tiles).
+    func feedCardSurface() -> some View {
         self
-            .padding(14)
+            .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: borderWidth)
-            )
-            .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
+            .glassEffect(.regular,
+                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
     }
 }
 
@@ -249,7 +247,7 @@ struct PersonGridCard: View {
                         )
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
                 .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(accessibilityText)
