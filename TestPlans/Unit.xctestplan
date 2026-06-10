@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "A1B2C3D4-0001-4000-8000-000000000001",
+      "name" : "Unit",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Harvest.xcodeproj",
+      "identifier" : "B8F6FB3B2C632729B0929F7D",
+      "name" : "Harvest"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Harvest.xcodeproj",
+        "identifier" : "A703831DEF4A3C68144E4315",
+        "name" : "HarvestTests"
+      }
+    }
+  ],
+  "version" : 1
+}

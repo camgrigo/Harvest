@@ -1,0 +1,31 @@
+{
+  "configurations" : [
+    {
+      "id" : "A1B2C3D4-0002-4000-8000-000000000002",
+      "name" : "UI",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "maximumTestRepetitions" : 3,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Harvest.xcodeproj",
+      "identifier" : "B8F6FB3B2C632729B0929F7D",
+      "name" : "Harvest"
+    },
+    "testExecutionOrdering" : "random",
+    "testRepetitionMode" : "retryOnFailure"
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Harvest.xcodeproj",
+        "identifier" : "1D35F899AEEE1699BAC053BF",
+        "name" : "HarvestUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

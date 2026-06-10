@@ -87,6 +87,12 @@ schemes:
       targets:
         Harvest: all
     test:
+      # Two plans encode the hard-won workflow: unit and UI run separately (together they OOM the
+      # on-device runner), and the UI plan auto-retries flaky tests up to 3x.
+      testPlans:
+        - path: TestPlans/Unit.xctestplan
+          defaultPlan: true
+        - path: TestPlans/UITests.xctestplan
       targets:
         - HarvestTests
         - HarvestUITests
