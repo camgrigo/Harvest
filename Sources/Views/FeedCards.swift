@@ -211,7 +211,7 @@ private extension View {
         self
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.regular,
+            .glassEffect(.clear,
                          in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
             .background {
                 LinearGradient(colors: [Color.accentColor.opacity(0.45),
@@ -241,7 +241,7 @@ struct PersonGridCard: View {
             .frame(maxWidth: .infinity,
                    minHeight: person.coordinate != nil ? heroHeight : nil,
                    alignment: .topLeading)
-            .glassEffect(.regular,
+            .glassEffect(.clear,
                          in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
             .background {
                 if let coordinate = person.coordinate {
