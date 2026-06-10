@@ -18,8 +18,8 @@ XCB := xcodebuild -scheme $(SCHEME) -allowProvisioningUpdates
 # UI tests to run individually (the device tunnel drops if many share one runner).
 UITESTS := testAppLaunchesWithoutCrashing testAccessibilityAudit testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
 	testEditingInterestDoesNotCreateDuplicate testRenameUpdatesPersonInPlace \
-	testPersonRowOpensDetail testSummarizeProducesReply testMapPreviewOpensAndCloses \
-	testMapSearchSheetOpensAndCancels testMapSearchFindsPerson \
+	testPersonRowOpensDetail testSummarizeProducesReply testMapTabShowsControls \
+	testMapSheetHasSearch testMapSearchFindsPerson \
 	testMapStyleChooserShowsLooks testMapStyleChooserSelectsSatellite testMapBreadcrumbToggles \
 	testMapShowEverythingStaysOnMap testPeopleTabListsFiledPerson
 

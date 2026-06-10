@@ -85,8 +85,8 @@ struct ExploreView: View {
     var onClose: (() -> Void)? = nil
     /// Live offset while swiping in from the left edge to dismiss the full-screen map.
     @State private var dismissDrag: CGFloat = 0
-    /// The map search sheet (jump to a person/territory by name).
-    @State private var showSearch = false
+    /// The persistent bottom sheet (nearby items, search, and the selected place's details).
+    @State private var showMapSheet = false
     /// Pushes a detail page — kept separate from `selected`, which drives the on-map callout.
     @State private var openTarget: MapTarget?
     /// Driving route from you to the selected person: polyline points + ETA, shown on the map and
@@ -111,7 +111,6 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             map
-                .overlay(alignment: .bottom) { bottomOverlay }
                 .overlay(alignment: .topTrailing) { mapControlsCluster }
                 .overlay(alignment: .leading) { dismissEdge }
                 .overlay(alignment: .topLeading) { closeButton }
@@ -139,12 +138,29 @@ struct ExploreView: View {
                 .sheet(item: $dropped) { pin in
                     LocationActionView(coordinate: pin.coordinate)
                 }
-                .sheet(isPresented: $showSearch) {
-                    MapSearchView(people: people, territories: territories) { jump(to: $0) }
-                }
                 .task {
                     // Keep the breadcrumb store small: drop logs older than 30 days on open.
                     VisitTracker.purgeOld(from: context)
+                }
+                // The items live in a native bottom sheet (Apple Maps style) that stays up while the
+                // Map tab is on screen. presentationBackgroundInteraction keeps the map tappable.
+                .onAppear { showMapSheet = true }
+                .onDisappear { showMapSheet = false }
+                .sheet(isPresented: $showMapSheet) {
+                    MapBottomSheet(
+                        selected: $selected,
+                        people: people, territories: territories,
+                        nearby: nearbyTargets, userLocation: userLocation,
+                        routeMinutes: routeMinutes,
+                        title: { title(of: $0) }, subtitle: { subtitle(of: $0) },
+                        onOpen: { openTarget = $0 },
+                        onDirections: { if let c = coordinate(of: $0) { openInMaps(c, name: title(of: $0)) } },
+                        onPick: { jump(to: $0) }
+                    )
+                    .presentationDetents([.height(120), .medium, .large])
+                    .presentationBackgroundInteraction(.enabled(upThrough: .large))
+                    .presentationDragIndicator(.visible)
+                    .interactiveDismissDisabled()
                 }
         }
         .offset(x: dismissDrag)
@@ -231,8 +247,6 @@ struct ExploreView: View {
     /// everything" button, sitting just below the system map controls.
     private var mapControlsCluster: some View {
         VStack(spacing: 12) {
-            Button { showSearch = true } label: { controlGlyph("magnifyingglass") }
-                .accessibilityLabel("Search")
             Button { showLookChooser = true } label: { controlGlyph(mapLook.symbol) }
                 .popover(isPresented: $showLookChooser) {
                     lookChooser.presentationCompactAdaptation(.popover)
@@ -363,30 +377,6 @@ struct ExploreView: View {
         return (nearbyPeople + nearbyTerritories).sorted { $0.1 < $1.1 }.map(\.0)
     }
 
-    @ViewBuilder
-    private var nearbyStrip: some View {
-        let targets = nearbyTargets
-        if !targets.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 10) {
-                    ForEach(targets, id: \.self) { target in
-                        Button { selected = target } label: {
-                            NearbyCard(target: target, userLocation: userLocation)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-            }
-            // Hug the cards' height so the strip stays a bottom row and floats over the map —
-            // a horizontal ScrollView otherwise greedily fills all vertical space. No backdrop;
-            // each glass card provides its own surface.
-            .fixedSize(horizontal: false, vertical: true)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-            .animation(.easeInOut(duration: 0.2), value: targets.count)
-        }
-    }
 
     // MARK: Selection · callout · route
 
@@ -409,7 +399,6 @@ struct ExploreView: View {
 
     /// Pick a result from search: focus its pin (callout); if it has no location, just open it.
     private func jump(to target: MapTarget) {
-        showSearch = false
         if coordinate(of: target) != nil {
             selected = target
         } else {
@@ -458,77 +447,6 @@ struct ExploreView: View {
                              address: nil)
         item.name = name
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
-    }
-
-    // MARK: Bottom overlay — callout or Nearby strip
-
-    @ViewBuilder
-    private var bottomOverlay: some View {
-        if let selected {
-            calloutCard(for: selected)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-        } else {
-            nearbyStrip
-        }
-    }
-
-    private func calloutCard(for target: MapTarget) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                calloutIcon(target)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title(of: target))
-                        .font(.headline).fontDesign(.serif).lineLimit(1)
-                    Text(subtitle(of: target))
-                        .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
-                }
-                Spacer(minLength: 0)
-                Button { selected = nil } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title2).foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss")
-            }
-            HStack(spacing: 10) {
-                Button { openTarget = target } label: {
-                    Label("Open", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                if let dest = coordinate(of: target) {
-                    Button { openInMaps(dest, name: title(of: target)) } label: {
-                        Label(routeMinutes.map { "\($0) min" } ?? "Directions", systemImage: "car.fill")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-        }
-        .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
-        .padding(.horizontal, 12)
-        .padding(.bottom, 12)
-    }
-
-    @ViewBuilder
-    private func calloutIcon(_ target: MapTarget) -> some View {
-        switch target {
-        case .person(let p):
-            let color: Color = p.isDue ? .red : p.theme.color
-            Image(systemName: p.interest.symbol)
-                .font(.headline)
-                .foregroundStyle(color)
-                .frame(width: 40, height: 40)
-                .background(color.opacity(0.15), in: Circle())
-        case .territory:
-            Image("Territory")
-                .resizable().scaledToFit()
-                .frame(width: 22, height: 22)
-                .foregroundStyle(.orange)
-                .frame(width: 40, height: 40)
-                .background(Color.orange.opacity(0.15), in: Circle())
-        }
     }
 
     private func title(of target: MapTarget) -> String {
@@ -879,6 +797,123 @@ private struct NearbyCard: View {
                 .frame(width: 19, height: 19)
                 .foregroundStyle(.orange)
                 .frame(width: 34, height: 34)
+                .background(Color.orange.opacity(0.15), in: Circle())
+        }
+    }
+}
+
+/// The Apple-Maps-style bottom sheet for the Map tab: search over the nearby places, or — when one
+/// is selected on the map — that place's details with Open / Directions.
+private struct MapBottomSheet: View {
+    @Binding var selected: MapTarget?
+    let people: [Person]
+    let territories: [Territory]
+    let nearby: [MapTarget]
+    let userLocation: CLLocation?
+    let routeMinutes: Int?
+    let title: (MapTarget) -> String
+    let subtitle: (MapTarget) -> String
+    var onOpen: (MapTarget) -> Void
+    var onDirections: (MapTarget) -> Void
+    var onPick: (MapTarget) -> Void
+
+    @State private var query = ""
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if let sel = selected {
+                    placeDetail(sel)
+                } else {
+                    placeList
+                }
+            }
+            .navigationTitle(selected.map(title) ?? "Places")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if selected != nil {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button { selected = nil } label: { Label("Back", systemImage: "chevron.left") }
+                    }
+                }
+            }
+        }
+        .searchable(text: $query, prompt: "Search people & territories")
+    }
+
+    /// Nearby places, or name-filtered results while searching.
+    private var results: [MapTarget] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !q.isEmpty else { return nearby }
+        return people.filter { $0.name.lowercased().contains(q) }.map(MapTarget.person)
+            + territories.filter { $0.name.lowercased().contains(q) }.map(MapTarget.territory)
+    }
+
+    @ViewBuilder
+    private var placeList: some View {
+        if results.isEmpty {
+            ContentUnavailableView(query.isEmpty ? "Nothing nearby" : "No matches",
+                                   systemImage: "mappin.slash")
+        } else {
+            List(results, id: \.self) { target in
+                Button {
+                    if query.isEmpty { selected = target } else { onPick(target); query = "" }
+                } label: {
+                    HStack(spacing: 12) {
+                        icon(target)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(title(target)).font(.body.weight(.semibold)).fontDesign(.serif)
+                            Text(subtitle(target)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+            .listStyle(.plain)
+        }
+    }
+
+    private func placeDetail(_ target: MapTarget) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                icon(target)
+                Text(subtitle(target)).font(.subheadline).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 12) {
+                Button { onOpen(target) } label: {
+                    Label("Open", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                Button { onDirections(target) } label: {
+                    Label(routeMinutes.map { "\($0) min" } ?? "Directions", systemImage: "car.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
+            Spacer()
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func icon(_ target: MapTarget) -> some View {
+        switch target {
+        case .person(let p):
+            let color: Color = p.isDue ? .red : p.theme.color
+            Image(systemName: p.interest.symbol)
+                .foregroundStyle(color)
+                .frame(width: 36, height: 36)
+                .background(color.opacity(0.15), in: Circle())
+        case .territory:
+            Image("Territory").resizable().scaledToFit()
+                .frame(width: 20, height: 20)
+                .foregroundStyle(.orange)
+                .frame(width: 36, height: 36)
                 .background(Color.orange.opacity(0.15), in: Circle())
         }
     }

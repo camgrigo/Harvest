@@ -18,6 +18,9 @@ struct RootView: View {
             Tab("People", systemImage: "person.2.fill") {
                 PeoplePanelContent()
             }
+            Tab("Map", systemImage: "map") {
+                ExploreView()
+            }
             Tab("Calendar", systemImage: "calendar") {
                 ServicePlansView()
             }

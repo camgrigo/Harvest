@@ -47,7 +47,6 @@ struct PeoplePanelContent: View {
     @State private var showNotebook = false
     @State private var showNewPerson = false
     @State private var showBackup = false
-    @State private var showFullMap = false
     @State private var detectedDuplicates: Set<DuplicatePair> = []
     @State private var mergeSource: Person?
     @State private var mergeTarget: Person?
@@ -116,8 +115,6 @@ struct PeoplePanelContent: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    mapPreview
-
                     if addingTerritory {
                         AddTerritoryInline(
                             onCreated: { territory in
@@ -186,10 +183,6 @@ struct PeoplePanelContent: View {
                 ConversationView(person: nil, autofocusInput: true)
                     .navigationTitle("Notebook")
                     .navigationBarTitleDisplayMode(.inline)
-            }
-            .fullScreenCover(isPresented: $showFullMap) {
-                ExploreView(onClose: { showFullMap = false })
-                    .navigationTransition(.zoom(sourceID: "peopleMap", in: mapZoom))
             }
             .sheet(isPresented: $showingScan) {
                 ScanTerritoryView { territory in
@@ -265,36 +258,6 @@ struct PeoplePanelContent: View {
     }
 
     // MARK: Map preview
-
-    /// A compact, rounded map centered on you. Tapping it expands to the full map with a zoom
-    /// transition; the expanded map carries an X to come back.
-    private var mapPreview: some View {
-        Button { showFullMap = true } label: {
-            Map(initialPosition: .userLocation(fallback: .automatic)) {
-                UserAnnotation()
-            }
-            .frame(height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .allowsHitTesting(false)
-            .overlay(alignment: .topTrailing) {
-                Image(systemName: "arrow.up.left.and.arrow.down.right")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.primary)
-                    .padding(8)
-                    .background(.regularMaterial, in: Circle())
-                    .padding(10)
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-            )
-            // The whole preview is the tap target — the (non-interactive) map won't eat taps.
-            .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .matchedTransitionSource(id: "peopleMap", in: mapZoom)
-        .accessibilityLabel("Open full map")
-    }
 
     // MARK: Sections
 

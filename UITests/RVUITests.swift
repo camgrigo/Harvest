@@ -215,57 +215,51 @@ final class RVUITests: XCTestCase {
         XCTAssertTrue(waitForReplies(app, count: 2), "Summarize should produce a reply")
     }
 
-    /// The People-tab map preview expands to the full map, and the X brings you back.
-    func testMapPreviewOpensAndCloses() throws {
-        let app = launch()
-        let preview = app.buttons["Open full map"]
-        XCTAssertTrue(preview.waitForExistence(timeout: 5), "The People tab shows a map preview")
-        preview.tap()
-        XCTAssertTrue(app.buttons["Show everything"].waitForExistence(timeout: 5),
-                      "Tapping the preview opens the full map with its controls")
-        app.buttons["Close map"].tap()
-        XCTAssertTrue(app.buttons["Open full map"].waitForExistence(timeout: 5),
-                      "Closing returns to the People tab")
+    /// Switches to the Map tab and waits for its controls to appear.
+    private func openMap(_ app: XCUIApplication) {
+        app.buttons["Map"].firstMatch.tap()
+        _ = app.buttons["Show everything"].waitForExistence(timeout: 5)
     }
 
-    /// The full map's search control opens a search sheet that can be cancelled.
-    func testMapSearchSheetOpensAndCancels() throws {
+    /// The Map tab shows the map with its control cluster.
+    func testMapTabShowsControls() throws {
         let app = launch()
-        app.buttons["Open full map"].tap()
-        let search = app.buttons["Search"]
-        XCTAssertTrue(search.waitForExistence(timeout: 5), "The map has a search control")
-        search.tap()
-        XCTAssertTrue(app.navigationBars["Search"].waitForExistence(timeout: 5),
-                      "The map search sheet appears")
-        app.buttons["Cancel"].tap()
-        XCTAssertTrue(app.buttons["Show everything"].waitForExistence(timeout: 5),
-                      "Cancelling returns to the map")
+        openMap(app)
+        XCTAssertTrue(app.buttons["Show everything"].exists, "The Map tab shows the map controls")
+        XCTAssertTrue(app.buttons["Map style"].exists, "and the style control")
     }
 
-    /// Searching the full map surfaces a matching person.
+    /// The Map tab's bottom sheet carries a search field.
+    func testMapSheetHasSearch() throws {
+        let app = launch()
+        openMap(app)
+        XCTAssertTrue(app.searchFields["Search people & territories"].waitForExistence(timeout: 5),
+                      "The bottom sheet has a search field")
+    }
+
+    /// Searching the Map tab's bottom sheet surfaces a matching person.
     func testMapSearchFindsPerson() throws {
         let app = launch()
         openComposer(app)
         send(app, "Met Maria at 12 Oak Street")
         XCTAssertTrue(waitForReplies(app))
-        openPeople(app)
 
-        app.buttons["Open full map"].tap()
-        XCTAssertTrue(app.buttons["Search"].waitForExistence(timeout: 5))
-        app.buttons["Search"].tap()
-
-        let field = app.searchFields["Find a person or territory"]
+        // Return to the People root (pops the chat, dismisses the keyboard) before switching tabs.
+        app.buttons["People"].firstMatch.tap()
+        openMap(app)
+        let field = app.searchFields["Search people & territories"]
         XCTAssertTrue(field.waitForExistence(timeout: 5), "The search field appears")
         field.tap()
         field.typeText("Maria")
-        XCTAssertTrue(app.collectionViews.buttons["Maria"].waitForExistence(timeout: 5),
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Maria")).firstMatch
+                        .waitForExistence(timeout: 5),
                       "Search lists the matching person")
     }
 
     /// The map-style chooser opens and lists the three looks.
     func testMapStyleChooserShowsLooks() throws {
         let app = launch()
-        app.buttons["Open full map"].tap()
+        openMap(app)
         let style = app.buttons["Map style"]
         XCTAssertTrue(style.waitForExistence(timeout: 5), "The map has a style control")
         style.tap()
@@ -277,7 +271,7 @@ final class RVUITests: XCTestCase {
     /// Choosing a different map style closes the chooser and returns to the map.
     func testMapStyleChooserSelectsSatellite() throws {
         let app = launch()
-        app.buttons["Open full map"].tap()
+        openMap(app)
         app.buttons["Map style"].tap()
         let satellite = app.buttons["Satellite"]
         XCTAssertTrue(satellite.waitForExistence(timeout: 5))
@@ -289,7 +283,7 @@ final class RVUITests: XCTestCase {
     /// The "today's trail" breadcrumb control toggles its accessibility label.
     func testMapBreadcrumbToggles() throws {
         let app = launch()
-        app.buttons["Open full map"].tap()
+        openMap(app)
         let show = app.buttons["Show today's trail"]
         XCTAssertTrue(show.waitForExistence(timeout: 5), "Trail toggle starts as 'Show'")
         show.tap()
@@ -300,11 +294,11 @@ final class RVUITests: XCTestCase {
     /// "Show everything" re-frames the map without dismissing it.
     func testMapShowEverythingStaysOnMap() throws {
         let app = launch()
-        app.buttons["Open full map"].tap()
+        openMap(app)
         let frame = app.buttons["Show everything"]
         XCTAssertTrue(frame.waitForExistence(timeout: 5))
         frame.tap()
-        XCTAssertTrue(app.buttons["Close map"].waitForExistence(timeout: 3),
+        XCTAssertTrue(app.buttons["Map style"].waitForExistence(timeout: 3),
                       "Still on the map after re-framing")
     }
 
