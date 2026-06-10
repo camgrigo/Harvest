@@ -232,30 +232,41 @@ struct PersonGridCard: View {
     let heroHeight: CGFloat
 
     var body: some View {
-        // Liquid Glass frosts whatever sits behind it. So we give every card a backdrop and let the
-        // glass panel float over it: the Look Around photo for a located visit, or a soft
-        // theme-tinted gradient otherwise (so the card reads as a card instead of see-through).
+        // Liquid Glass frosts whatever sits behind it.
+        Group {
+            if let coordinate = person.coordinate {
+                // Located: the Look Around photo fills the card; the text rides a clear-glass panel
+                // pinned to the top, leaving the space below it open so a bit of the photo shows.
+                ZStack(alignment: .top) {
+                    RowLookAround(coordinate: coordinate, feather: false)
+                    textPanel
+                }
+                .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .top)
+            } else {
+                // No photo: the clear-glass panel rides a soft theme-tinted gradient so the card
+                // reads as a colored glass tile instead of see-through.
+                textPanel
+                    .background {
+                        LinearGradient(colors: [person.theme.color.opacity(0.55),
+                                                person.theme.color.opacity(0.22)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+        .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    /// The name/status/headline on a clear Liquid Glass panel.
+    private var textPanel: some View {
         content(onImage: true)
             .shadow(color: .black.opacity(0.55), radius: 4, x: 0, y: 1)
             .padding(16)
-            .frame(maxWidth: .infinity,
-                   minHeight: person.coordinate != nil ? heroHeight : nil,
-                   alignment: .topLeading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
             .glassEffect(.clear,
                          in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .background {
-                if let coordinate = person.coordinate {
-                    RowLookAround(coordinate: coordinate, feather: false)
-                } else {
-                    LinearGradient(colors: [person.theme.color.opacity(0.55),
-                                            person.theme.color.opacity(0.22)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityText)
     }
 
     /// A clean, single VoiceOver readout for the card: name, status/due, and the gist.
