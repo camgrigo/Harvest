@@ -40,6 +40,13 @@ struct RootView: View {
             .task { backfillAttemptTimes() }
             .task { purgeDeletedNotes() }
             .task { SessionReportEngine.purgeSoftDeleted(context: context) }
+            .task {
+                // Refresh the rolling window of recurring-plan reminders (passed occurrences roll
+                // off; newly in-range ones get scheduled). Skipped under UI tests.
+                guard !isUITesting else { return }
+                let plans = (try? context.fetch(FetchDescriptor<ServicePlan>())) ?? []
+                await ReminderScheduler.shared.regenerateRecurringReminders(plans: plans)
+            }
             .sheet(item: $routedPerson) { person in
                 NavigationStack { PersonDetailView(person: person) }
             }

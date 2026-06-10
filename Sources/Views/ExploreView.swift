@@ -96,11 +96,6 @@ struct ExploreView: View {
 
     // Today's trail breadcrumb.
     @AppStorage("map.showBreadcrumb") private var showBreadcrumb = false
-    // Best-effort offline tiles.
-    @AppStorage("map.offlineEnabled") private var offlineEnabled = false
-    @State private var isDownloadingTiles = false
-    @State private var showOfflineDownloadPrompt = false
-    @State private var offlineNotice: String?
 
     /// Today's visited coordinates, oldest→newest, for the breadcrumb polyline.
     private var breadcrumbCoordinates: [CLLocationCoordinate2D] {
@@ -146,11 +141,6 @@ struct ExploreView: View {
                 }
                 .sheet(isPresented: $showSearch) {
                     MapSearchView(people: people, territories: territories) { jump(to: $0) }
-                }
-                .sheet(isPresented: $showOfflineDownloadPrompt) {
-                    offlineDownloadSheet
-                        .presentationDetents([.medium])
-                        .presentationDragIndicator(.visible)
                 }
                 .task {
                     // Keep the breadcrumb store small: drop logs older than 30 days on open.
@@ -253,10 +243,6 @@ struct ExploreView: View {
                                             : "point.topleft.down.curvedto.point.bottomright.up")
             }
             .accessibilityLabel(showBreadcrumb ? "Hide today's trail" : "Show today's trail")
-            Button { showOfflineDownloadPrompt = true } label: {
-                controlGlyph(offlineEnabled ? "arrow.down.circle.fill" : "arrow.down.circle")
-            }
-            .accessibilityLabel("Download this area for offline use")
             Button { frameAll() } label: { controlGlyph("scope") }
                 .accessibilityLabel("Show everything")
         }
@@ -271,70 +257,6 @@ struct ExploreView: View {
             .frame(width: 44, height: 44)
             .background(.regularMaterial, in: Circle())
             .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-    }
-
-    // MARK: Offline tiles
-
-    /// A short sheet explaining the honest limits of offline maps, with a "Download" action that
-    /// prefetches the current viewport's OpenStreetMap tiles into a session-only cache.
-    private var offlineDownloadSheet: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                Image(systemName: "square.and.arrow.down.on.square")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.tint)
-                Text("Download this area")
-                    .font(.title3.weight(.semibold))
-                Text("Fetches map tiles for what's on screen now and keeps them for this session, so they still draw if you go offline. This is best-effort — it can't download new tiles without a connection, and it won't make Apple's base map fully offline.")
-                    .font(.callout)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                if let offlineNotice {
-                    Text(offlineNotice).font(.caption).foregroundStyle(.secondary)
-                }
-                Button {
-                    Task { await downloadCurrentRegion() }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isDownloadingTiles { ProgressView().tint(.white) }
-                        else { Image(systemName: "arrow.down.circle.fill") }
-                        Text(isDownloadingTiles ? "Downloading…" : "Download")
-                            .fontWeight(.semibold)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .disabled(isDownloadingTiles)
-                Spacer()
-            }
-            .padding()
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { showOfflineDownloadPrompt = false }
-                }
-            }
-        }
-    }
-
-    private func downloadCurrentRegion() async {
-        guard let region = visibleRegion else {
-            offlineNotice = "Move the map to the area you want first."
-            return
-        }
-        isDownloadingTiles = true
-        defer { isDownloadingTiles = false }
-        let radius = max(200, region.span.latitudeDelta * 111_000 / 2)
-        let circular = CLCircularRegion(center: region.center,
-                                        radius: radius,
-                                        identifier: "offline-\(UUID().uuidString)")
-        let fetched = await TileOverlayCache.shared.prefetchTiles(for: circular)
-        offlineEnabled = true
-        offlineNotice = fetched > 0
-            ? "Cached \(fetched) tiles for this session."
-            : "No new tiles fetched (already cached or no connection)."
     }
 
     /// Re-frame the camera to show everyone (the opening overview).

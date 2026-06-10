@@ -171,6 +171,16 @@ struct ServicePlansView: View {
     private func delete(_ list: [ServicePlan], _ offsets: IndexSet) {
         for index in offsets { context.delete(list[index]) }
         context.saveIfPossible()
+        refreshRecurringReminders(context)
+    }
+}
+
+/// Reschedule the rolling window of recurring-plan reminders after a plan changes.
+@MainActor
+func refreshRecurringReminders(_ context: ModelContext) {
+    Task {
+        let plans = (try? context.fetch(FetchDescriptor<ServicePlan>())) ?? []
+        await ReminderScheduler.shared.regenerateRecurringReminders(plans: plans)
     }
 }
 
@@ -287,6 +297,7 @@ private struct PlanEditor: View {
             target = new
         }
         context.saveIfPossible()
+        refreshRecurringReminders(context)
 
         if addToCalendar {
             Task {

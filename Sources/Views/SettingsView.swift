@@ -140,17 +140,12 @@ struct SettingsView: View {
         }
     }
 
-    /// Reminders preferences: master switch, the default time of day, and optional quiet hours.
+    /// Reminders preferences: master switch and optional quiet hours.
     @ViewBuilder
     private var remindersSection: some View {
         Section {
             Toggle("Reminders", isOn: $policy.remindersEnabled)
             if policy.remindersEnabled {
-                Picker("Default time", selection: $policy.defaultReminderHour) {
-                    ForEach(0..<24, id: \.self) { hour in
-                        Text(Self.hourLabel(hour)).tag(hour)
-                    }
-                }
                 Toggle("Quiet hours", isOn: $policy.quietHoursEnabled)
                 if policy.quietHoursEnabled {
                     Picker("From", selection: $policy.quietHoursStart) {

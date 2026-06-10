@@ -12,7 +12,7 @@ final class NotAtHomeExporterTests: XCTestCase {
             for: Person.self, JournalEntry.self, ChatMessage.self,
                  NotAtHome.self, Territory.self, DoNotCall.self,
                  ServicePlan.self, CongregationBoundary.self, ServiceSession.self,
-                 OfflineMapRegion.self, VisitLog.self,
+                 VisitLog.self,
             configurations: config
         )
         return ModelContext(container)

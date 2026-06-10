@@ -1,16 +1,14 @@
 import Foundation
 import UserNotifications
 
-/// The user's preferences for how return-visit reminders behave: on/off, the default time of day a
-/// reminder should land, and an optional nightly "quiet hours" window during which a reminder is
-/// pushed to the morning. A plain `Codable` value type so the date/level math is pure and easy to
-/// unit-test, and so it can be persisted as one small blob in `UserDefaults` (it's app-wide, not
-/// per-record, so it doesn't need to live in the SwiftData store).
+/// The user's preferences for how return-visit reminders behave: on/off and an optional nightly
+/// "quiet hours" window during which a reminder is pushed to the morning. A plain `Codable` value
+/// type so the date/level math is pure and easy to unit-test, and so it can be persisted as one
+/// small blob in `UserDefaults` (it's app-wide, not per-record, so it doesn't need to live in the
+/// SwiftData store).
 struct NotificationPolicy: Codable, Equatable, Sendable {
     /// Master switch. When off, nothing is scheduled.
     var remindersEnabled: Bool = true
-    /// Hour-of-day (0–23) a reminder with no specific time should fire. Defaults to 9 AM.
-    var defaultReminderHour: Int = 9
     /// Whether the quiet-hours window is honored at all.
     var quietHoursEnabled: Bool = false
     /// Quiet-hours start hour (24-hour). Defaults to 9 PM.

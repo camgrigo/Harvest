@@ -17,7 +17,7 @@ enum AppModelContainer {
         Person.self, JournalEntry.self, ChatMessage.self,
         NotAtHome.self, Territory.self, DoNotCall.self, ServicePlan.self,
         CongregationBoundary.self, ServiceSession.self,
-        OfflineMapRegion.self, VisitLog.self,
+        VisitLog.self,
     ])
 
     /// Builds a container for the app's models. `inMemory` backs UI-test launches with an

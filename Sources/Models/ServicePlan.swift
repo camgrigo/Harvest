@@ -46,6 +46,32 @@ final class ServicePlan {
     func nextOccurrence() -> Date? {
         RecurrenceKind(rawValue: recurrence)?.nextDate(after: date)
     }
+
+    /// Upcoming occurrence dates for a recurring plan (including the original `date` when it's still
+    /// in the future), oldest first, capped at `limit`. Empty for a non-recurring plan. Used to fan
+    /// reminders out across the next several repeats.
+    func upcomingOccurrences(limit: Int, now: Date = .now, calendar: Calendar = .current) -> [Date] {
+        let kind = recurrenceKind
+        guard kind != .none, limit > 0 else { return [] }
+        var dates: [Date] = []
+        var cursor = date
+        if cursor > now { dates.append(cursor) }
+        var guardCount = 0
+        while dates.count < limit, guardCount < 500,
+              let next = kind.nextDate(after: cursor, calendar: calendar) {
+            if next > now { dates.append(next) }
+            cursor = next
+            guardCount += 1
+        }
+        return dates
+    }
+
+    /// Short body for this plan's reminder notification.
+    var reminderSummary: String {
+        if !partner.isEmpty { return "Field service with \(partner)" }
+        if !place.isEmpty { return "Field service at \(place)" }
+        return "Upcoming service plan"
+    }
 }
 
 /// How a service plan repeats. Pure value type so the date math is easy to unit-test.

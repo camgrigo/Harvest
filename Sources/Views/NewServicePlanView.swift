@@ -178,6 +178,7 @@ struct NewServicePlanView: View {
         )
         context.insert(plan)
         context.saveIfPossible()
+        refreshRecurringReminders(context)
 
         if addToCalendar {
             Task {

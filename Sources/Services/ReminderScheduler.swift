@@ -106,4 +106,59 @@ final class ReminderScheduler {
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [Self.territoryKey(id)])
     }
+
+    // MARK: Recurring plan reminders
+
+    /// Identifier prefix for a recurring plan's fanned-out occurrence reminders.
+    private static let planPrefix = "plan-"
+    private static func planKey(_ id: UUID, _ index: Int) -> String {
+        "\(planPrefix)\(id.uuidString)-\(index)"
+    }
+    /// Future occurrences scheduled per recurring plan. iOS only keeps 64 pending notifications
+    /// total, so we fan out a small rolling window and refresh it at launch rather than trying to
+    /// schedule every repeat forever.
+    static let maxPlanOccurrences = 6
+
+    /// Cancel every pending recurring-plan reminder, then reschedule a rolling window from the
+    /// current set of plans. Run at launch (and after a plan is added/edited/deleted) so passed
+    /// occurrences roll off, newly-in-range ones get scheduled, and deleted/edited plans don't
+    /// leave orphaned reminders. Honors the user's `NotificationPolicy`.
+    func regenerateRecurringReminders(plans: [ServicePlan], policy: NotificationPolicy? = nil) async {
+        let center = UNUserNotificationCenter.current()
+        let pending = await center.pendingNotificationRequests()
+        let stale = pending.map(\.identifier).filter { $0.hasPrefix(Self.planPrefix) }
+        if !stale.isEmpty { center.removePendingNotificationRequests(withIdentifiers: stale) }
+
+        let policy = policy ?? NotificationPolicyStore.load()
+        guard policy.remindersEnabled else { return }
+
+        for plan in plans where plan.recurrenceKind != .none {
+            let dates = plan.upcomingOccurrences(limit: Self.maxPlanOccurrences)
+            for (index, date) in dates.enumerated() {
+                schedulePlanOccurrence(planID: plan.id, index: index,
+                                       body: plan.reminderSummary, on: date, policy: policy)
+            }
+        }
+    }
+
+    private func schedulePlanOccurrence(planID: UUID, index: Int, body: String,
+                                        on date: Date, policy: NotificationPolicy) {
+        let fireDate = policy.shiftOutOfQuietHours(date)
+        guard fireDate > .now else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Service plan"
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = Self.categoryID
+        content.interruptionLevel = policy.interruptionLevel(for: fireDate)
+
+        let comps = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute], from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: Self.planKey(planID, index),
+                                  content: content, trigger: trigger))
+    }
 }
