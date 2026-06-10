@@ -306,6 +306,9 @@ struct PersonGridCard: View {
                 .foregroundStyle(onImage ? Color.white : Color.primary)
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
+                // The status glyph is decorative; VoiceOver reads just the name (and the card's
+                // composed label carries the status). Also keeps the name exactly matchable.
+                .accessibilityLabel(person.name)
                 .accessibilityIdentifier("personRow.name")
             if !person.studyLesson.isEmpty {
                 HStack(spacing: 4) {

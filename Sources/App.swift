@@ -19,6 +19,11 @@ struct HarvestApp: App {
         // Normal launches share one container with the App Intents (Siri / Shortcuts).
         let uiTesting = ProcessInfo.processInfo.arguments.contains("-uitesting")
         self.uiTesting = uiTesting
+        // UI tests get an in-memory store; also wipe the persistent UserDefaults domain so
+        // @AppStorage flags (breadcrumb toggle, onboarding, etc.) don't leak between runs.
+        if uiTesting, let domain = Bundle.main.bundleIdentifier {
+            UserDefaults.standard.removePersistentDomain(forName: domain)
+        }
         container = uiTesting ? AppModelContainer.make(inMemory: true) : AppModelContainer.shared
         if !uiTesting {
             registerBackgroundTasks(container: container)
