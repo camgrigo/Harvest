@@ -12,6 +12,13 @@ GENERIC     := generic/platform=iOS
 DD_BUILD := /tmp/harvest-dd
 DD_UNIT  := /tmp/harvest-dd-unit
 DD_UI    := /tmp/harvest-dd-ui
+DD_SIM   := /tmp/harvest-dd-sim
+
+# Simulator: the whole UI suite runs in one shot here (no tunnel/unlock babysitting), ~3x faster.
+SIM_NAME    := Harvest-Test
+SIM_DEVTYPE := com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro
+SIM_RUNTIME := com.apple.CoreSimulator.SimRuntime.iOS-27-0
+SIM_DEST    := platform=iOS Simulator,name=$(SIM_NAME)
 
 XCB := xcodebuild -scheme $(SCHEME) -allowProvisioningUpdates
 
@@ -23,7 +30,7 @@ UITESTS := testAppLaunchesWithoutCrashing testAccessibilityAudit testReturnKeySu
 	testMapStyleChooserShowsLooks testMapStyleChooserSelectsSatellite testMapBreadcrumbToggles \
 	testMapShowEverythingStaysOnMap testPeopleTabListsFiledPerson
 
-.PHONY: generate build build-device install launch test-unit test-ui clean help
+.PHONY: generate build build-device install launch test-unit test-ui sim test-unit-sim test-ui-sim clean help
 
 help:
 	@grep -E '^[a-z-]+:.*?##' $(MAKEFILE_LIST) | sed 's/:.*##/\t/' | sort
@@ -59,5 +66,16 @@ test-ui: ## Run UI tests one at a time on device (own derivedData; needs phone u
 		else echo NO-RESULT; fi; \
 	done
 
+sim: ## Create (if needed) and boot the iOS 27 test simulator
+	@xcrun simctl list devices 2>/dev/null | grep -q '$(SIM_NAME) (' \
+		|| xcrun simctl create '$(SIM_NAME)' '$(SIM_DEVTYPE)' '$(SIM_RUNTIME)'
+	@xcrun simctl bootstatus '$(SIM_NAME)' -b >/dev/null 2>&1 || xcrun simctl boot '$(SIM_NAME)' 2>/dev/null || true
+
+test-unit-sim: sim ## Run the unit suite on the simulator (own derivedData)
+	$(XCB) -testPlan Unit -destination '$(SIM_DEST)' -derivedDataPath $(DD_SIM) test
+
+test-ui-sim: sim ## Run the whole UI suite on the simulator in one shot (fast; MapKit test auto-skips)
+	$(XCB) -testPlan UITests -destination '$(SIM_DEST)' -derivedDataPath $(DD_SIM) test
+
 clean: ## Remove all derivedData dirs
-	rm -rf $(DD_BUILD) $(DD_UNIT) $(DD_UI)
+	rm -rf $(DD_BUILD) $(DD_UNIT) $(DD_UI) $(DD_SIM)
