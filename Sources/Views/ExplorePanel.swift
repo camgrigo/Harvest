@@ -148,6 +148,9 @@ struct PeoplePanelContent: View {
                 .padding(.bottom, 12)
             }
             .scrollDismissesKeyboard(.immediately)
+            // iOS 27: opt this scroll layout into swipe actions so the cards' .swipeActions work
+            // outside a List.
+            .swipeActionsContainer()
             .navigationTitle("People")
             .searchable(text: $search, prompt: "Search people & territories")
             .toolbar {
@@ -325,6 +328,11 @@ struct PeoplePanelContent: View {
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: "person-\(person.id)", in: mapZoom)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) { personToDelete = person } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
         .contextMenu {
             let others = duplicatePartners(of: person)
             if !others.isEmpty {

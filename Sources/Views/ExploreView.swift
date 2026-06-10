@@ -379,7 +379,10 @@ struct ExploreView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
             }
-            .background(.bar)
+            // Hug the cards' height so the strip stays a bottom row and floats over the map —
+            // a horizontal ScrollView otherwise greedily fills all vertical space. No backdrop;
+            // each glass card provides its own surface.
+            .fixedSize(horizontal: false, vertical: true)
             .transition(.move(edge: .bottom).combined(with: .opacity))
             .animation(.easeInOut(duration: 0.2), value: targets.count)
         }
@@ -783,9 +786,9 @@ private struct NearbyCard: View {
         }
         .padding(10)
         .frame(width: 168, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground),
+        .background(.regularMaterial,
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.14), radius: 6, x: 0, y: 2)
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
         .task(id: cacheKey) { await loadETA() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(a11yLabel)
