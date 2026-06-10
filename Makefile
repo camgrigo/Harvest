@@ -50,8 +50,8 @@ test-ui: ## Run UI tests one at a time on device (own derivedData; needs phone u
 		printf '%s :: ' "$$t"; \
 		out=$$($(XCB) -testPlan UITests -destination '$(DEVICE_DEST)' -derivedDataPath $(DD_UI) \
 			-only-testing:HarvestUITests/RVUITests/$$t test 2>&1); \
-		if echo "$$out" | grep -q "'$$t'.*passed"; then echo PASS; \
-		elif echo "$$out" | grep -q "'$$t'.*failed"; then echo FAIL; \
+		if echo "$$out" | grep -q "$$t\].* passed"; then echo PASS; \
+		elif echo "$$out" | grep -q "$$t\].* failed"; then echo FAIL; \
 		elif echo "$$out" | grep -qi Locked; then echo DEVICE-LOCKED; \
 		elif echo "$$out" | grep -qi crashed; then echo CRASH; \
 		else echo NO-RESULT; fi; \
