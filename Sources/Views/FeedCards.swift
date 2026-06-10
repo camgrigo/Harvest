@@ -204,14 +204,21 @@ func territorySubtitle(_ territory: Territory) -> String {
 let feedCardCornerRadius: CGFloat = 30
 
 private extension View {
-    /// The card surface shared by the people/territory list cells: Liquid Glass in a large,
-    /// continuous rounded rect (modeled on the iOS 27 Siri tiles).
+    /// The card surface shared by the territory list cells: Liquid Glass over a soft tinted
+    /// backdrop (glass alone is see-through), in a large continuous rounded rect — the iOS 27
+    /// Siri tile look.
     func feedCardSurface() -> some View {
         self
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .glassEffect(.regular,
                          in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+            .background {
+                LinearGradient(colors: [Color.accentColor.opacity(0.45),
+                                        Color.accentColor.opacity(0.18)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
     }
 }
 
@@ -225,39 +232,30 @@ struct PersonGridCard: View {
     let heroHeight: CGFloat
 
     var body: some View {
-        if let coordinate = person.coordinate {
-            // Located visit: the Look Around photo fills the whole card; text layers on top over a
-            // top-down scrim and carries a soft shadow so it stays legible on bright/busy photos.
-            content(onImage: true)
-                .shadow(color: .black.opacity(0.7), radius: 4, x: 0, y: 1)
-                .padding(14)
-                .frame(maxWidth: .infinity, minHeight: heroHeight, alignment: .topLeading)
-                .background {
-                    ZStack {
-                        RowLookAround(coordinate: coordinate, feather: false)
-                        // A top-weighted scrim: dark behind the text up top, fading toward the
-                        // bottom so more of the Look Around photo stays visible on the taller cards.
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black.opacity(0.80), location: 0),
-                                .init(color: .black.opacity(0.38), location: 0.45),
-                                .init(color: .black.opacity(0.16), location: 1.0),
-                            ],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    }
+        // Liquid Glass frosts whatever sits behind it. So we give every card a backdrop and let the
+        // glass panel float over it: the Look Around photo for a located visit, or a soft
+        // theme-tinted gradient otherwise (so the card reads as a card instead of see-through).
+        content(onImage: true)
+            .shadow(color: .black.opacity(0.55), radius: 4, x: 0, y: 1)
+            .padding(16)
+            .frame(maxWidth: .infinity,
+                   minHeight: person.coordinate != nil ? heroHeight : nil,
+                   alignment: .topLeading)
+            .glassEffect(.regular,
+                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+            .background {
+                if let coordinate = person.coordinate {
+                    RowLookAround(coordinate: coordinate, feather: false)
+                } else {
+                    LinearGradient(colors: [person.theme.color.opacity(0.55),
+                                            person.theme.color.opacity(0.22)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-                .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityText)
-        } else {
-            // No photo: a solid text tile.
-            content(onImage: false)
-                .feedCardSurface()
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(accessibilityText)
-        }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityText)
     }
 
     /// A clean, single VoiceOver readout for the card: name, status/due, and the gist.
