@@ -1,7 +1,6 @@
 import SwiftUI
 import SwiftData
 import BackgroundTasks
-import UIKit
 
 @main
 struct HarvestApp: App {
@@ -32,9 +31,6 @@ struct HarvestApp: App {
                 .environmentObject(notifications)
                 .task { notifications.activate() }
                 .task { if !uiTesting { Self.scheduleAutoBackupTask() } }
-                // Under UI testing, stop the screen from auto-locking mid-run (a lock kills the
-                // app launch and fails the whole suite with pid 0 / "Locked").
-                .task { if uiTesting { UIApplication.shared.isIdleTimerDisabled = true } }
         }
         .modelContainer(container)
     }

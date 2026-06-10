@@ -16,7 +16,7 @@ DD_UI    := /tmp/harvest-dd-ui
 XCB := xcodebuild -scheme $(SCHEME) -allowProvisioningUpdates
 
 # UI tests to run individually (the device tunnel drops if many share one runner).
-UITESTS := testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
+UITESTS := testAppLaunchesWithoutCrashing testReturnKeySubmitsAndFilesVisit testSendButtonFilesVisit \
 	testEditingInterestDoesNotCreateDuplicate testRenameUpdatesPersonInPlace \
 	testPersonRowOpensDetail testSummarizeProducesReply testMapPreviewOpensAndCloses \
 	testMapSearchSheetOpensAndCancels testMapSearchFindsPerson testPeopleTabListsFiledPerson
@@ -43,13 +43,12 @@ launch: ## Launch the app on the iPhone (terminates any existing instance)
 	xcrun devicectl device process launch --device $(DEVICE_ID) --terminate-existing $(BUNDLE_ID)
 
 test-unit: ## Run the unit suite on device (own derivedData)
-	$(XCB) -destination '$(DEVICE_DEST)' -derivedDataPath $(DD_UNIT) \
-		-only-testing:HarvestTests test
+	$(XCB) -testPlan Unit -destination '$(DEVICE_DEST)' -derivedDataPath $(DD_UNIT) test
 
 test-ui: ## Run UI tests one at a time on device (own derivedData; needs phone unlocked + awake)
 	@for t in $(UITESTS); do \
 		printf '%s :: ' "$$t"; \
-		out=$$($(XCB) -destination '$(DEVICE_DEST)' -derivedDataPath $(DD_UI) \
+		out=$$($(XCB) -testPlan UITests -destination '$(DEVICE_DEST)' -derivedDataPath $(DD_UI) \
 			-only-testing:HarvestUITests/RVUITests/$$t test 2>&1); \
 		if echo "$$out" | grep -q "'$$t'.*passed"; then echo PASS; \
 		elif echo "$$out" | grep -q "'$$t'.*failed"; then echo FAIL; \

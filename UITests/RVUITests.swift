@@ -94,6 +94,21 @@ final class RVUITests: XCTestCase {
 
     // MARK: - Tests
 
+    /// Cheapest possible guard: the app launches under -uitesting and is still alive after its
+    /// first-frame `.task` work has run. This is where launch-time crashes surface — e.g. submitting
+    /// a background task whose handler was never registered (which once took down the whole suite
+    /// with pid 0). Runs fast and fails loudly before the heavier flows below.
+    func testAppLaunchesWithoutCrashing() {
+        let app = launch()
+        // A known control proves the first screen rendered.
+        XCTAssertTrue(app.buttons["People"].firstMatch.waitForExistence(timeout: 10),
+                      "First screen should render")
+        // Give the on-appear tasks a beat, then confirm the app didn't crash out from under us.
+        Thread.sleep(forTimeInterval: 3)
+        XCTAssertEqual(app.state, .runningForeground,
+                       "App should stay running after its launch tasks complete")
+    }
+
     /// Typing a note and pressing Return submits it and the engine files a page for the person.
     func testReturnKeySubmitsAndFilesVisit() throws {
         let app = launch()
