@@ -27,6 +27,8 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         NSLocationWhenInUseUsageDescription: >-
           Shows your return visits on the map and where you are in relation to them.
         NSMicrophoneUsageDescription: >-
