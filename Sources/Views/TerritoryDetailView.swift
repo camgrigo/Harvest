@@ -21,7 +21,6 @@ struct TerritoryDetailView: View {
     @Environment(\.openURL) private var openURL
 
     @StateObject private var location = CurrentLocationProvider()
-    @State private var isAdding = false
     @State private var addedCount = 0
     @State private var notice: String?
     @State private var showRename = false
@@ -45,38 +44,13 @@ struct TerritoryDetailView: View {
     @State private var answeredDoor: NotAtHome?
 
     // Add-by-typing + nearby suggestions
-    @State private var typed = ""
-    @State private var liveResults: [NearbyAddresses.Suggestion] = []
-    @State private var ambient: [NearbyAddresses.Suggestion] = []
-    @State private var searching = false
-    @State private var searchTask: Task<Void, Never>?
-    @State private var region: MKCoordinateRegion?
-
-    /// Doors ordered so the ones most worth knocking now (clear time suggestion, fewer attempts)
-    /// rise to the top — without disturbing `Territory.sortedDoors` (used by the cards elsewhere).
-    private var doors: [NotAtHome] {
-        territory.sortedDoors.sorted { a, b in
-            let pa = a.returnHint.priority, pb = b.returnHint.priority
-            if pa != pb { return pa > pb }
-            if a.attemptCount != b.attemptCount { return a.attemptCount < b.attemptCount }
-            return a.lastTriedAt > b.lastTriedAt
-        }
-    }
-    private var doNotCalls: [DoNotCall] { territory.sortedDoNotCalls }
-
-    private var existingKeys: Set<String> {
-        Set(territory.doors.map { NearbyAddresses.normalize($0.address) })
-    }
-    private var freshAmbient: [NearbyAddresses.Suggestion] {
-        ambient.filter { !existingKeys.contains(NearbyAddresses.normalize($0.address)) }
-    }
+    @State private var search = TerritoryAddressSearch()
 
     var body: some View {
         List {
             infoSection
             dueDateSection
-            if !doNotCalls.isEmpty { doNotCallSection }
-            notAtHomeSection
+            TerritoryDoorsSection(territory: territory) { answeredDoor = $0 }
             suggestionsSection
         }
         .navigationTitle(territory.name)
@@ -154,8 +128,8 @@ struct TerritoryDetailView: View {
                 photoItem = nil
             }
         }
-        .onChange(of: typed) { _, value in runLiveSearch(value) }
-        .task { await loadOnAppear() }
+        .onChange(of: search.typed) { _, value in search.runLiveSearch(value, territory: territory) }
+        .task { await search.loadOnAppear(territory: territory, location: location) }
     }
 
     // MARK: Sections
@@ -262,67 +236,12 @@ struct TerritoryDetailView: View {
         }
     }
 
-    private var doNotCallSection: some View {
-        Section("Do not call") {
-            ForEach(doNotCalls) { dnc in
-                Label {
-                    Text(dnc.address)
-                } icon: {
-                    Image(systemName: "hand.raised.fill").foregroundStyle(.red)
-                }
-            }
-            .onDelete(perform: deleteDoNotCalls)
-        }
-    }
-
-    private var notAtHomeSection: some View {
-        Section(doNotCalls.isEmpty ? "" : "Not-at-homes") {
-            if doors.isEmpty {
-                Text("No not-at-homes yet. Tap “Add nearest address” or type one below as you walk.")
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(doors) { door in
-                    NotAtHomeRow(door: door)
-                        .contentShape(Rectangle())
-                        .onTapGesture { answeredDoor = door }
-                        .swipeActions(edge: .leading) {
-                            Button {
-                                door.markTriedAgain(); territory.touch(); context.saveIfPossible()
-                            } label: {
-                                Label("Tried again", systemImage: "arrow.clockwise")
-                            }
-                            .tint(.blue)
-                            Button {
-                                door.decrementTry(); context.saveIfPossible()
-                            } label: {
-                                Label("Undo try", systemImage: "arrow.uturn.backward")
-                            }
-                            .tint(.gray)
-                            .disabled(door.attemptCount <= 1)
-                        }
-                        .swipeActions(edge: .trailing) {
-                            Button(role: .destructive) {
-                                deleteDoor(door)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            Button {
-                                answeredDoor = door
-                            } label: {
-                                Label("Answered", systemImage: "person.fill.checkmark")
-                            }
-                            .tint(.green)
-                        }
-                }
-            }
-        }
-    }
-
     @ViewBuilder
     private var suggestionsSection: some View {
-        if typed.isEmpty, !freshAmbient.isEmpty {
+        let fresh = search.freshAmbient(territory)
+        if search.typed.isEmpty, !fresh.isEmpty {
             Section("Suggested nearby") {
-                ForEach(freshAmbient) { suggestion in
+                ForEach(fresh) { suggestion in
                     suggestionRow(suggestion)
                 }
             }
@@ -336,7 +255,7 @@ struct TerritoryDetailView: View {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(suggestion.address).foregroundStyle(.primary)
-                    if let d = distanceString(to: suggestion) {
+                    if let d = search.distanceString(to: suggestion) {
                         Text(d).font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -392,11 +311,11 @@ struct TerritoryDetailView: View {
             // Type-to-add field on top, so it stays visible above the keyboard while you type.
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Type an address to add…", text: $typed)
+                TextField("Type an address to add…", text: $search.typed)
                     .textFieldStyle(.plain)
                     .autocorrectionDisabled()
-                if !typed.isEmpty {
-                    Button { typed = "" } label: {
+                if !search.typed.isEmpty {
+                    Button { search.typed = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
@@ -407,16 +326,16 @@ struct TerritoryDetailView: View {
             .glassEffect(in: Capsule())
 
             // Live matches for what you're typing — right below the field.
-            if !typed.isEmpty {
+            if !search.typed.isEmpty {
                 VStack(spacing: 0) {
-                    if liveResults.isEmpty {
-                        Text(searching ? "Searching nearby…" : "No matches nearby")
+                    if search.liveResults.isEmpty {
+                        Text(search.searching ? "Searching nearby…" : "No matches nearby")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                     } else {
-                        ForEach(liveResults.prefix(4)) { suggestion in
+                        ForEach(search.liveResults.prefix(4)) { suggestion in
                             Button { addSuggestion(suggestion) } label: {
                                 HStack(spacing: 8) {
                                     Image(systemName: "plus.circle.fill").foregroundStyle(.tint)
@@ -426,18 +345,22 @@ struct TerritoryDetailView: View {
                                 .padding(.vertical, 7)
                             }
                             .buttonStyle(.plain)
-                            if suggestion.id != liveResults.prefix(4).last?.id { Divider() }
+                            if suggestion.id != search.liveResults.prefix(4).last?.id { Divider() }
                         }
                     }
                 }
             }
 
             Button {
-                Task { await addNearest() }
+                Task {
+                    await search.addNearest(territory: territory, context: context, location: location,
+                                            notify: { showNotice($0) },
+                                            confirm: { confirmAdd($0) })
+                }
             } label: {
                 HStack(spacing: 8) {
-                    if isAdding { ProgressView().tint(.white) } else { Image(systemName: "location.fill") }
-                    Text(isAdding ? "Finding address…" : "Add nearest address")
+                    if search.isAdding { ProgressView().tint(.white) } else { Image(systemName: "location.fill") }
+                    Text(search.isAdding ? "Finding address…" : "Add nearest address")
                         .fontWeight(.semibold)
                 }
                 .frame(maxWidth: .infinity)
@@ -445,7 +368,7 @@ struct TerritoryDetailView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
-            .disabled(isAdding)
+            .disabled(search.isAdding)
         }
         .padding()
         .background(.bar)
@@ -492,114 +415,22 @@ struct TerritoryDetailView: View {
 
     // MARK: Actions
 
-    private func loadOnAppear() async {
-        guard region == nil else { return }
-        if let loc = await location.current() {
-            region = MKCoordinateRegion(center: loc.coordinate,
-                                        latitudinalMeters: 600, longitudinalMeters: 600)
-            await loadAmbient(around: loc.coordinate)
-        } else if let c = territory.coordinate {
-            region = MKCoordinateRegion(center: c, latitudinalMeters: 800, longitudinalMeters: 800)
-            await loadAmbient(around: c)
-        }
-    }
-
-    private func loadAmbient(around coordinate: CLLocationCoordinate2D) async {
-        ambient = await NearbyAddresses.suggestions(around: coordinate, excluding: existingKeys)
-    }
-
-    private func runLiveSearch(_ value: String) {
-        searchTask?.cancel()
-        let q = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { liveResults = []; searching = false; return }
-        guard let region else { liveResults = []; return }
-        searching = true
-        searchTask = Task {
-            try? await Task.sleep(for: .milliseconds(300))
-            if Task.isCancelled { return }
-            let results = await NearbyAddresses.search(query: q, near: region, excluding: existingKeys)
-            if Task.isCancelled { return }
-            liveResults = results
-            searching = false
-        }
-    }
-
+    /// Add a suggestion as a door (used by both the live-results list and the "Suggested nearby"
+    /// section); confirmation toast handled via `confirmAdd`.
     private func addSuggestion(_ suggestion: NearbyAddresses.Suggestion) {
-        let key = NearbyAddresses.normalize(suggestion.address)
-        guard !existingKeys.contains(key) else { return }
-        let door = NotAtHome(address: suggestion.address,
-                             latitude: suggestion.latitude,
-                             longitude: suggestion.longitude)
-        context.insert(door)
-        door.territory = territory
-        territory.touch()
-        VisitTracker.logVisit(
-            coordinate: CLLocationCoordinate2D(latitude: suggestion.latitude,
-                                               longitude: suggestion.longitude),
-            context: "not_at_home", in: context)
-        context.saveIfPossible()
-        ambient.removeAll { NearbyAddresses.normalize($0.address) == key }
-        liveResults.removeAll { NearbyAddresses.normalize($0.address) == key }
+        search.addSuggestion(suggestion, territory: territory, context: context) { confirmAdd($0) }
+    }
+
+    /// A successful add: bump the success-feedback counter and show a confirmation toast.
+    private func confirmAdd(_ message: String) {
         addedCount += 1
-        withAnimation { notice = "Added \(suggestion.address)." }
+        withAnimation { notice = message }
     }
 
-    private func addNearest() async {
-        isAdding = true
-        defer { isAdding = false }
-
-        guard let loc = await location.current() else {
-            withAnimation { notice = "Turn on location to add the nearest address." }
-            return
-        }
-        let coordinate = loc.coordinate
-        let address = await AddressGeocoder.address(for: coordinate)
-        let resolved = address.isEmpty ? "Dropped location" : address
-
-        if let existing = duplicate(of: resolved, near: coordinate) {
-            existing.markTriedAgain()
-            territory.touch()
-            VisitTracker.logVisit(coordinate: coordinate, context: "not_at_home_revisit", in: context)
-            context.saveIfPossible()
-            addedCount += 1
-            withAnimation { notice = "Already on your list — marked tried again." }
-            return
-        }
-
-        let door = NotAtHome(address: resolved,
-                             latitude: coordinate.latitude,
-                             longitude: coordinate.longitude)
-        context.insert(door)
-        door.territory = territory
-        territory.touch()
-        VisitTracker.logVisit(coordinate: coordinate, context: "not_at_home", in: context)
-        context.saveIfPossible()
-        addedCount += 1
-        withAnimation { notice = "Added \(resolved)." }
+    /// A non-success message (e.g. location off): show a toast without the success feedback.
+    private func showNotice(_ message: String) {
+        withAnimation { notice = message }
     }
-
-    private func duplicate(of address: String, near coordinate: CLLocationCoordinate2D) -> NotAtHome? {
-        let key = NearbyAddresses.normalize(address)
-        let here = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-        return territory.doors.first { door in
-            if NearbyAddresses.normalize(door.address) == key { return true }
-            if let c = door.coordinate {
-                return CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: here) < 18
-            }
-            return false
-        }
-    }
-
-    private func distanceString(to suggestion: NearbyAddresses.Suggestion) -> String? {
-        guard let region else { return nil }
-        let origin = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
-        let there = CLLocation(latitude: suggestion.latitude, longitude: suggestion.longitude)
-        return Self.distanceFormatter.string(fromDistance: origin.distance(from: there))
-    }
-
-    private static let distanceFormatter: MKDistanceFormatter = {
-        let f = MKDistanceFormatter(); f.unitStyle = .abbreviated; return f
-    }()
 
     private func openDirections() {
         guard let c = territory.coordinate else { return }
@@ -614,16 +445,6 @@ struct TerritoryDetailView: View {
         guard !s.isEmpty else { territory.urlString = nil; context.saveIfPossible(); return }
         if !s.contains("://") { s = "https://" + s }
         territory.urlString = s
-        context.saveIfPossible()
-    }
-
-    private func deleteDoor(_ door: NotAtHome) {
-        context.delete(door)
-        context.saveIfPossible()
-    }
-
-    private func deleteDoNotCalls(_ offsets: IndexSet) {
-        for index in offsets { context.delete(doNotCalls[index]) }
         context.saveIfPossible()
     }
 
@@ -665,33 +486,6 @@ struct TerritoryDetailView: View {
         context.delete(territory)
         context.saveIfPossible()
         dismiss()
-    }
-}
-
-/// One door row: address, attempt count + last-tried, and a best-time-to-return hint.
-private struct NotAtHomeRow: View {
-    let door: NotAtHome
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(door.address)
-                .accessibilityIdentifier("notAtHome.address")
-            HStack(spacing: 6) {
-                Text("Tried \(door.attemptCount)×")
-                Text("· last \(door.lastTriedAt.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-
-            if let hint = door.returnHint.text {
-                Label(hint, systemImage: door.returnHint.symbol)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.blue)
-                    .labelStyle(.titleAndIcon)
-                    .accessibilityIdentifier("notAtHome.hint")
-            }
-        }
-        .padding(.vertical, 2)
     }
 }
 

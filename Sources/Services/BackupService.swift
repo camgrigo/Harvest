@@ -28,7 +28,7 @@ enum BackupService {
         var errorDescription: String? {
             switch self {
             case .wrongPassphrase: "That passphrase doesn't match this backup."
-            case .badFile: "This file isn't a Harvest backup."
+            case .badFile: "This file isn't a Trellis backup."
             case .biometricsUnavailable: "Face ID is not available on this device."
             case .biometricAuthFailed(let msg): "Face ID authentication failed: \(msg)"
             case .keychainError: "Failed to access the secure backup key."
