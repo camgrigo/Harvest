@@ -213,3 +213,12 @@ private extension View {
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
+
+#if DEBUG
+#Preview("New Person") {
+    NavigationStack {
+        NewPersonView(onCreated: { _ in })
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

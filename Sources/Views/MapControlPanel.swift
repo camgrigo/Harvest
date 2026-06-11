@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// The right-side control cluster on the Map tab (Apple Maps style): the map-style chooser, a
-/// toggle for today's breadcrumb trail, and a "show everything" button. Sits just below the
-/// system map controls. Owns its own look-chooser popover state; the map look and breadcrumb
+/// toggle for today's breadcrumb trail, and a "show everything" button. Sits at the bottom-trailing
+/// corner, clear of the system map controls (which own the top-trailing corner) and just above the
+/// collapsed bottom sheet. Owns its own look-chooser popover state; the map look and breadcrumb
 /// visibility are bound to the parent so they persist via @AppStorage.
 struct MapControlPanel: View {
     @Binding var mapLook: MapLook
@@ -29,6 +30,7 @@ struct MapControlPanel: View {
                 .accessibilityLabel("Show everything")
         }
         .padding(.trailing, 12)
+        // TEMP diagnostic: top placement to confirm the chooser popover is occluded by the sheet.
         .padding(.top, 96)
     }
 
@@ -73,3 +75,14 @@ struct MapControlPanel: View {
         .padding(18)
     }
 }
+
+#if DEBUG
+#Preview("MapControlPanel") {
+    ZStack {
+        Color.green.opacity(0.3).ignoresSafeArea()
+        MapControlPanel(mapLook: .constant(.standard),
+                        showBreadcrumb: .constant(false),
+                        onFrameAll: {})
+    }
+}
+#endif

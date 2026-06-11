@@ -57,3 +57,16 @@ struct CSVShareSheet: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("CSV share sheet") {
+    CSVShareSheet(
+        data: """
+        Name,Address,Status
+        Maria,123 Main St,Interested
+        Tom,456 Oak Ave,Not at home
+        """,
+        fileName: "Territory.csv"
+    )
+}
+#endif

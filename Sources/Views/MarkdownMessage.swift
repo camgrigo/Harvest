@@ -59,3 +59,18 @@ struct MarkdownMessage: View {
         )) ?? AttributedString(string)
     }
 }
+
+#if DEBUG
+#Preview("Markdown message") {
+    MarkdownMessage(text: """
+    ## This week
+
+    You have **3** return visits coming up.
+
+    - Maria — bring the next study at **John 17:3**
+    - Tom — follow up on the question about suffering
+    - Aisha — left a tract last time
+    """)
+    .padding()
+}
+#endif

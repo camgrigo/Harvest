@@ -519,3 +519,33 @@ private struct MessageRow: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("General notebook") {
+    NavigationStack {
+        ConversationView(person: nil)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Person thread") {
+    NavigationStack {
+        ConversationView(person: PreviewData.person)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Message row") {
+    MessageRow(
+        message: ChatMessage(text: "Here's a quick **summary** of your week.", isFromUser: false),
+        streamedText: nil,
+        cardPerson: nil,
+        canRegenerate: true,
+        onCopy: {},
+        onRegenerate: {},
+        onOpenPerson: { _ in }
+    )
+    .padding()
+    .modelContainer(PreviewData.container)
+}
+#endif

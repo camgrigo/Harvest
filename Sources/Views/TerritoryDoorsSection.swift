@@ -122,3 +122,19 @@ struct NotAtHomeRow: View {
         .padding(.vertical, 2)
     }
 }
+
+#if DEBUG
+#Preview("Doors section") {
+    List {
+        TerritoryDoorsSection(territory: PreviewData.territory) { _ in }
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Not-at-home row") {
+    List {
+        NotAtHomeRow(door: PreviewData.door)
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

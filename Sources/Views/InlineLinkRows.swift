@@ -89,3 +89,32 @@ struct PersonRowContent: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Maps link row") {
+    List {
+        MapsLinkRow(title: "Directions",
+                    address: "123 Market St, San Francisco",
+                    coordinate: PreviewData.sampleCoordinate)
+        MapsLinkRow(title: "Open in Apple Maps", address: "")
+    }
+}
+
+#Preview("Person link row") {
+    NavigationStack {
+        List {
+            PersonLinkRow(person: PreviewData.person)
+            PersonLinkRow(person: PreviewData.newPerson)
+        }
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Person row content") {
+    List {
+        PersonRowContent(person: PreviewData.person)
+        PersonRowContent(person: PreviewData.newPerson)
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

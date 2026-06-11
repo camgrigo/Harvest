@@ -201,3 +201,12 @@ struct ScanTerritoryView: View {
 }
 
 // (ImagePicker now lives in Sources/Views/ImagePicker.swift, shared with the territory screen.)
+
+#if DEBUG
+#Preview("Scan territory") {
+    NavigationStack {
+        ScanTerritoryView(onCreated: { _ in })
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

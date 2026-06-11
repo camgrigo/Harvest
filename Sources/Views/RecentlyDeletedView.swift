@@ -64,3 +64,12 @@ struct RecentlyDeletedView: View {
         return days <= 0 ? "removing soon" : "\(days)d left"
     }
 }
+
+#if DEBUG
+#Preview("Recently deleted") {
+    NavigationStack {
+        RecentlyDeletedView(person: PreviewData.person)
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

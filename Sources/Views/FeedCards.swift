@@ -144,20 +144,33 @@ struct RowLookAround: View {
         }
     }
 
-    /// Fetches the scene and renders it to a still off the main actor (both are non-Sendable);
-    /// `sending` lets the finished image cross back to the view safely.
+    /// Fetches a Look Around still where there's coverage, else falls back to a plain map snapshot,
+    /// so a located card is never a blank box. Rendered off the main actor (both APIs are
+    /// non-Sendable); `sending` lets the finished image cross back to the view safely.
     private nonisolated static func loadImage(
         at coordinate: CLLocationCoordinate2D
     ) async -> sending UIImage? {
-        guard let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene else {
-            return nil
+        if let scene = try? await MKLookAroundSceneRequest(coordinate: coordinate).scene {
+            let options = MKLookAroundSnapshotter.Options()
+            options.size = CGSize(width: 600, height: 600)
+            options.pointOfInterestFilter = .excludingAll
+            if let snapshot = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot {
+                return snapshot.image
+            }
         }
-        let options = MKLookAroundSnapshotter.Options()
+        // No Look Around coverage (common away from major streets) — show the map instead of nothing.
+        return await mapSnapshot(at: coordinate)
+    }
+
+    /// A plain map still centered on the coordinate — the fallback when Look Around has no imagery.
+    private nonisolated static func mapSnapshot(
+        at coordinate: CLLocationCoordinate2D
+    ) async -> sending UIImage? {
+        let options = MKMapSnapshotter.Options()
+        options.region = MKCoordinateRegion(
+            center: coordinate, latitudinalMeters: 350, longitudinalMeters: 350)
         options.size = CGSize(width: 600, height: 600)
-        options.pointOfInterestFilter = .excludingAll
-        guard let snapshot = try? await MKLookAroundSnapshotter(scene: scene, options: options).snapshot else {
-            return nil
-        }
+        guard let snapshot = try? await MKMapSnapshotter(options: options).start() else { return nil }
         return snapshot.image
     }
 }
@@ -379,3 +392,41 @@ struct TerritoryGridCard: View {
         .accessibilityLabel("Territory \(territory.name), \(territorySubtitle(territory))")
     }
 }
+
+#if DEBUG
+#Preview("Person grid cards") {
+    let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
+    ScrollView {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
+            PersonGridCard(person: PreviewData.person,
+                           distanceText: "0.3 mi",
+                           heroHeight: 300)
+            PersonGridCard(person: PreviewData.newPerson,
+                           distanceText: nil,
+                           heroHeight: 250)
+            PersonGridCard(person: PreviewData.unlocatedPerson,
+                           distanceText: nil,
+                           heroHeight: 200)
+        }
+        .padding()
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Territory grid cards") {
+    ScrollView {
+        VStack(spacing: 12) {
+            TerritoryGridCard(territory: PreviewData.territory, distanceText: "1.2 mi")
+            TerritoryGridCard(territory: PreviewData.territory, distanceText: nil)
+        }
+        .padding()
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Look Around still") {
+    RowLookAround(coordinate: PreviewData.sampleCoordinate, distanceText: "0.3 mi")
+        .frame(height: 200)
+        .padding()
+}
+#endif

@@ -87,3 +87,10 @@ struct LocationActionView: View {
         dismiss()
     }
 }
+
+#if DEBUG
+#Preview("LocationActionView") {
+    LocationActionView(coordinate: PreviewData.sampleCoordinate)
+        .modelContainer(PreviewData.container)
+}
+#endif

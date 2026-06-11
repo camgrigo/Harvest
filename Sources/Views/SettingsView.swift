@@ -220,3 +220,14 @@ struct SettingsView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Settings") {
+    NavigationStack {
+        SettingsView()
+    }
+    .modelContainer(PreviewData.container)
+}
+
+// ShareSheet is a UIActivityViewController wrapper; a static preview is low-value, so it's skipped.
+#endif

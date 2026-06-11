@@ -616,3 +616,20 @@ private struct AnsweredSheet: View {
         onFinish("Removed \(address).")
     }
 }
+
+#if DEBUG
+#Preview("Territory detail") {
+    NavigationStack {
+        TerritoryDetailView(territory: PreviewData.territory)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Answered sheet") {
+    Text("Backing view")
+        .sheet(isPresented: .constant(true)) {
+            AnsweredSheet(door: PreviewData.door) { _ in }
+        }
+        .modelContainer(PreviewData.container)
+}
+#endif

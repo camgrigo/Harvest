@@ -408,3 +408,19 @@ struct PersonDetailView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Person detail") {
+    NavigationStack {
+        PersonDetailView(person: PreviewData.person)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Person detail (unlocated)") {
+    NavigationStack {
+        PersonDetailView(person: PreviewData.unlocatedPerson)
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

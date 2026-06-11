@@ -213,3 +213,12 @@ private extension View {
                         in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
+
+#if DEBUG
+#Preview("New Service Plan") {
+    NavigationStack {
+        NewServicePlanView()
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

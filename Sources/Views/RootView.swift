@@ -173,3 +173,11 @@ struct RootView: View {
         return try? context.fetch(descriptor).first
     }
 }
+
+#if DEBUG
+#Preview("Root") {
+    RootView()
+        .modelContainer(PreviewData.container)
+        .environmentObject(NotificationCoordinator())
+}
+#endif

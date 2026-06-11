@@ -34,3 +34,9 @@ struct ImagePicker: UIViewControllerRepresentable {
         }
     }
 }
+
+#if DEBUG
+#Preview("Image picker") {
+    ImagePicker(onImage: { _ in })
+}
+#endif

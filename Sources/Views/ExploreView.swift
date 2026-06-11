@@ -101,7 +101,7 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             map
-                .overlay(alignment: .topTrailing) {
+                .overlay(alignment: .bottomTrailing) {
                     MapControlPanel(mapLook: $mapLook,
                                     showBreadcrumb: $showBreadcrumb,
                                     onFrameAll: frameAll)
@@ -558,3 +558,31 @@ struct MapBottomSheet: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("ExploreView") {
+    let model = MapModel()
+    model.nearby = PreviewData.people.map { MapTarget.person($0) }
+    return ExploreView(model: model)
+        .modelContainer(PreviewData.container)
+}
+
+#Preview("MapBottomSheet · list") {
+    let model = MapModel()
+    model.nearby = PreviewData.people.map { MapTarget.person($0) }
+    return MapBottomSheet(model: model,
+                          people: PreviewData.people,
+                          territories: [PreviewData.territory])
+        .modelContainer(PreviewData.container)
+}
+
+#Preview("MapBottomSheet · selected") {
+    let model = MapModel()
+    model.nearby = PreviewData.people.map { MapTarget.person($0) }
+    model.selected = .person(PreviewData.person)
+    return MapBottomSheet(model: model,
+                          people: PreviewData.people,
+                          territories: [PreviewData.territory])
+        .modelContainer(PreviewData.container)
+}
+#endif

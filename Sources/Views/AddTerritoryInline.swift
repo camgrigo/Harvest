@@ -72,3 +72,11 @@ struct AddTerritoryInline: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("Add territory inline") {
+    AddTerritoryInline(onCreated: { _ in }, onCancel: {})
+        .padding()
+        .modelContainer(PreviewData.container)
+}
+#endif

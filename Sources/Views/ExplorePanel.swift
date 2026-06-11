@@ -453,3 +453,10 @@ func balanceIntoColumns<T>(_ items: [T], height: (T) -> CGFloat) -> (left: [T], 
     }
     return (left, right)
 }
+
+#if DEBUG
+#Preview("People panel") {
+    PeoplePanelContent()
+        .modelContainer(PreviewData.container)
+}
+#endif

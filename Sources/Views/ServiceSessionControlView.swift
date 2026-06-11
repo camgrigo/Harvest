@@ -174,3 +174,24 @@ struct SessionRow: View {
         .padding(.vertical, 2)
     }
 }
+
+#if DEBUG
+#Preview("Session Control") {
+    ServiceSessionControlView()
+        .modelContainer(PreviewData.container)
+}
+
+#Preview("Session History") {
+    NavigationStack {
+        SessionHistoryView()
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Session Row") {
+    List {
+        SessionRow(session: PreviewData.session)
+    }
+    .modelContainer(PreviewData.container)
+}
+#endif

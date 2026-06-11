@@ -321,3 +321,55 @@ private struct PlanEditor: View {
         return calendar.date(from: comps) ?? nextHour
     }
 }
+
+#if DEBUG
+#Preview("Service Plans") {
+    NavigationStack {
+        ServicePlansView()
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Plan Editor – Existing") {
+    NavigationStack {
+        PlanEditor(plan: PreviewData.plan)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Plan Editor – New") {
+    NavigationStack {
+        PlanEditor(plan: nil)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+#Preview("Plan Row") {
+    List {
+        RecurringOccurrenceRowPreview(plan: PreviewData.plan)
+    }
+    .modelContainer(PreviewData.container)
+}
+
+/// Wrapper exposing `ServicePlansView`'s private `planRow` styling for the row preview.
+private struct RecurringOccurrenceRowPreview: View {
+    let plan: ServicePlan
+    var body: some View {
+        Button {} label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(plan.date.formatted(.dateTime.weekday(.abbreviated).month().day().hour().minute()))
+                    .font(.headline)
+                if !plan.place.isEmpty {
+                    Label(plan.place, systemImage: "mappin.and.ellipse")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                if !plan.partner.isEmpty {
+                    Label(plan.partner, systemImage: "person.2")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+#endif
