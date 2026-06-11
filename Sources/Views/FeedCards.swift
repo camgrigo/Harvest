@@ -262,7 +262,8 @@ struct PersonGridCard: View {
         VStack(alignment: .leading, spacing: 12) {
             content(onImage: false)
             if let coordinate = person.coordinate {
-                RowLookAround(coordinate: coordinate, feather: false)
+                // Drive/▢ distance is overlaid as a badge on the image (bottom-trailing).
+                RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
                     .frame(height: max(90, heroHeight - 110))
                     .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius - 8,
                                                 style: .continuous))
@@ -285,20 +286,15 @@ struct PersonGridCard: View {
     @ViewBuilder
     private func content(onImage: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if topLabel != nil || distanceText != nil {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    if let label = topLabel {
-                        Text(label.text)
-                            .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
-                                                     : label.color)
-                    }
-                    Spacer(minLength: 0)
-                    if let distanceText {
-                        Text(distanceText)
-                            .foregroundStyle(onImage ? Color.white.opacity(0.95) : Color.secondary)
-                    }
-                }
-                .font(.caption.weight(.semibold))
+            if let label = topLabel {
+                // Overdue shows an alarm glyph instead of the word; everything else is plain text.
+                let isOverdue = label.text.hasPrefix("Overdue")
+                Text(isOverdue
+                     ? "\(Image(systemName: "alarm.fill")) \(label.text.replacingOccurrences(of: "Overdue ", with: ""))"
+                     : "\(label.text)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(onImage ? (person.isDue ? Color.red : Color.white.opacity(0.95))
+                                             : label.color)
             }
             // Name, with the interest status as a trailing inline glyph (leaf / book / pause) —
             // shown only when a status is set (".interested" reads as "None").
