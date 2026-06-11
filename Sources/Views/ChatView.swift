@@ -499,7 +499,7 @@ private struct MessageRow: View {
         if let cardPerson {
             VStack(alignment: .leading, spacing: 8) {
                 Button { onOpenPerson(cardPerson) } label: {
-                    PersonGridCard(person: cardPerson, distanceText: nil, heroHeight: 150)
+                    PersonGridCard(person: cardPerson, heroHeight: 150)
                         .frame(maxWidth: 250)
                 }
                 .buttonStyle(.plain)

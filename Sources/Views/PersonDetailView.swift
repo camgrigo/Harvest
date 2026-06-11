@@ -27,6 +27,37 @@ struct PersonDetailView: View {
                 Section {
                     LookAroundPreview(initialScene: lookAroundScene)
                         .frame(height: 180)
+                        .overlay(alignment: .bottomLeading) {
+                            if !person.addressText.isEmpty {
+                                Text(person.addressText)
+                                    .font(.callout.weight(.medium))
+                                    .lineLimit(2)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 9)
+                                    .glassEffect(in: Capsule())
+                                    .padding(12)
+                            }
+                        }
+                        // Directions rides on the same card as the address + Look Around. A scene
+                        // only loads when there's a coordinate, so directions are always available here.
+                        .overlay(alignment: .topTrailing) {
+                            if let coordinate = person.coordinate {
+                                Button {
+                                    openInMaps(coordinate,
+                                               name: person.addressText.isEmpty ? person.name : person.addressText)
+                                } label: {
+                                    Label("Directions", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                                        .font(.callout.weight(.semibold))
+                                        .foregroundStyle(.tint)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 9)
+                                        .glassEffect(in: Capsule())
+                                }
+                                .buttonStyle(.plain)
+                                .padding(12)
+                                .accessibilityLabel("Directions to \(person.name)")
+                            }
+                        }
                         .listRowInsets(EdgeInsets())
                 }
             }
@@ -163,7 +194,9 @@ struct PersonDetailView: View {
                 }
             } else {
                 // ── Read-only display ─────────────────────────────────────────
-                if !person.addressText.isEmpty {
+                // The address rides on the Look Around preview when there's a scene; show the
+                // plain row only when there's no preview to host it.
+                if !person.addressText.isEmpty, lookAroundScene == nil {
                     LabeledContent("Address", value: person.addressText)
                 }
                 LabeledContent("Status") {
@@ -173,7 +206,9 @@ struct PersonDetailView: View {
             }
 
             // ── Actions ───────────────────────────────────────────────────────
-            if !person.addressText.isEmpty {
+            // Directions normally ride on the Look Around card; fall back to a row only when
+            // there's no scene to host the button.
+            if !person.addressText.isEmpty, lookAroundScene == nil {
                 MapsLinkRow(title: "Directions",
                             address: person.addressText,
                             coordinate: person.coordinate)

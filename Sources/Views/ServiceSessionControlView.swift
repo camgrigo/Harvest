@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 /// Start/Stop timer with a live elapsed badge plus access to session history and the monthly
 /// rollup. Designed to sit in the Calendar tab's bottom safe-area inset.

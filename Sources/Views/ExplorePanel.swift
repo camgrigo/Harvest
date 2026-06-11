@@ -286,12 +286,11 @@ struct PeoplePanelContent: View {
     private func personCard(_ person: Person) -> some View {
         Button { selected = .person(person) } label: {
             PersonGridCard(person: person,
-                           distanceText: distanceText(for: person.coordinate),
                            heroHeight: heroHeight(for: person))
         }
         .buttonStyle(.plain)
         .matchedTransitionSource(id: "person-\(person.id)", in: mapZoom)
-        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        .swipeActions(edge: .trailing) {
             Button(role: .destructive) { personToDelete = person } label: {
                 Label("Delete", systemImage: "trash")
             }

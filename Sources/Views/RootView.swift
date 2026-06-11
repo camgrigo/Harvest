@@ -18,9 +18,6 @@ struct RootView: View {
     // and the sheet share state through `mapModel`.
     @State private var mapModel = MapModel()
     @State private var selectedTab: RootTab = .people
-    @Query(filter: #Predicate<Person> { !$0.isArchived },
-           sort: \Person.createdAt, order: .reverse) private var people: [Person]
-    @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
 
     @State private var routedPerson: Person?
 
@@ -38,18 +35,6 @@ struct RootView: View {
                 ServicePlansView()
             }
         }
-            // The Map tab's bottom sheet. Presented here (not inside ExploreView) so the tab bar
-            // floats over it; visible only while Map is selected and nothing else has the screen.
-            .sheet(isPresented: Binding(
-                get: { selectedTab == .map && !mapModel.suppressSheet },
-                set: { _ in }
-            )) {
-                MapBottomSheet(model: mapModel, people: people, territories: territories)
-                    .presentationDetents([.height(120), .medium, .large])
-                    .presentationBackgroundInteraction(.enabled(upThrough: .large))
-                    .presentationDragIndicator(.visible)
-                    .interactiveDismissDisabled()
-            }
             .fullScreenCover(isPresented: Binding(
                 get: { !hasOnboarded },
                 set: { if !$0 { hasOnboarded = true } }

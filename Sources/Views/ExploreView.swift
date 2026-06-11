@@ -87,6 +87,15 @@ struct ExploreView: View {
     // Today's trail breadcrumb.
     @AppStorage("map.showBreadcrumb") private var showBreadcrumb = false
 
+    /// Whether the Apple-Maps-style "Map Modes" card is up. While it's up the bottom sheet steps
+    /// aside (via `model.suppressSheet`) so the card isn't occluded by it.
+    @State private var showModes = false
+
+    /// Drives the persistent bottom sheet. Presented from *within* the Map tab (not from `RootView`'s
+    /// TabView) so the iOS 26 floating tab bar composites above it and stays tappable — a sheet
+    /// presented at the TabView level instead covers the tab bar. Toggled with the tab's appearance.
+    @State private var sheetUp = false
+
     /// Today's visited coordinates, oldest→newest, for the breadcrumb polyline.
     private var breadcrumbCoordinates: [CLLocationCoordinate2D] {
         VisitTracker.pointsToday(from: visitLogs).map(\.coordinate)
@@ -104,8 +113,11 @@ struct ExploreView: View {
                 .overlay(alignment: .bottomTrailing) {
                     MapControlPanel(mapLook: $mapLook,
                                     showBreadcrumb: $showBreadcrumb,
+                                    onChooseStyle: openModes,
                                     onFrameAll: frameAll)
                 }
+                .overlay(alignment: .bottom) { modesOverlay }
+                .animation(.spring(duration: 0.3), value: showModes)
                 .animation(.spring(duration: 0.3), value: model.selected)
                 .navigationDestination(item: $model.openTarget) { target in
                     switch target {
@@ -141,6 +153,21 @@ struct ExploreView: View {
                     VisitTracker.purgeOld(from: context)
                 }
         }
+        // The persistent bottom sheet — presented here, inside the Map tab, so the floating tab bar
+        // stays above it. `sheetUp` follows the tab's visibility; `suppressSheet` steps it aside for
+        // the Map Modes card, a dropped-pin action, or a pushed detail.
+        .sheet(isPresented: Binding(
+            get: { sheetUp && !model.suppressSheet },
+            set: { _ in }
+        )) {
+            MapBottomSheet(model: model, people: people, territories: territories)
+                .presentationDetents([.height(120), .medium, .large])
+                .presentationBackgroundInteraction(.enabled(upThrough: .large))
+                .presentationDragIndicator(.visible)
+                .interactiveDismissDisabled()
+        }
+        .onAppear { sheetUp = true }
+        .onDisappear { sheetUp = false }
     }
 
     // MARK: Map
@@ -226,6 +253,35 @@ struct ExploreView: View {
                 withAnimation(.easeInOut) { camera = .region(region) }
             }
         }
+    }
+
+    // MARK: Map Modes card
+
+    /// The Map-style chooser, presented as a bottom card over a dimming scrim. Lives in the map's
+    /// own layer (not a sheet/popover), so it isn't blocked by the bottom sheet — which we step
+    /// aside while the card is up.
+    @ViewBuilder
+    private var modesOverlay: some View {
+        if showModes {
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { closeModes() }
+                MapModesCard(mapLook: $mapLook, onClose: closeModes)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+    }
+
+    private func openModes() {
+        model.suppressSheet = true
+        showModes = true
+    }
+
+    private func closeModes() {
+        showModes = false
+        model.suppressSheet = false
     }
 
     // MARK: Nearby strip

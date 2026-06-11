@@ -226,14 +226,16 @@ let feedCardCornerRadius: CGFloat = 30
 
 private extension View {
     /// The card surface shared by the list cells: a solid rounded tile with a soft shadow, in the
-    /// large continuous radius of the iOS 27 Siri tiles.
-    func feedCardSurface() -> some View {
+    /// large continuous radius of the iOS 27 Siri tiles. Pass `glow: true` for a soft tint-colored
+    /// halo instead of the neutral drop shadow (the territory card's identity-card look).
+    func feedCardSurface(glow: Bool = false) -> some View {
         self
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(.secondarySystemGroupedBackground),
                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
+            .shadow(color: glow ? Color.accentColor.opacity(0.25) : .black.opacity(0.10),
+                    radius: glow ? 16 : 10, x: 0, y: glow ? 6 : 4)
     }
 
     /// Same tile, but with a Liquid Glass background instead of a solid fill (used by the person
@@ -253,7 +255,6 @@ private extension View {
 /// headline as a preview, and — when the visit is placed — a Look Around hero photo.
 struct PersonGridCard: View {
     let person: Person
-    let distanceText: String?
     let heroHeight: CGFloat
 
     var body: some View {
@@ -262,8 +263,7 @@ struct PersonGridCard: View {
         VStack(alignment: .leading, spacing: 12) {
             content(onImage: false)
             if let coordinate = person.coordinate {
-                // Drive/▢ distance is overlaid as a badge on the image (bottom-trailing).
-                RowLookAround(coordinate: coordinate, distanceText: distanceText, feather: false)
+                RowLookAround(coordinate: coordinate, distanceText: nil, feather: false)
                     .frame(height: max(90, heroHeight - 110))
                     .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius - 8,
                                                 style: .continuous))
@@ -363,6 +363,8 @@ struct TerritoryGridCard: View {
                     .frame(width: 13, height: 13)
                     .accessibilityHidden(true)
                 Text("Territory")
+                    .textCase(.uppercase)
+                    .kerning(0.6)
                 Spacer(minLength: 0)
                 if let distanceText {
                     Text(distanceText).foregroundStyle(.secondary)
@@ -383,7 +385,7 @@ struct TerritoryGridCard: View {
                 .lineLimit(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .feedCardSurface()
+        .feedCardSurface(glow: true)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Territory \(territory.name), \(territorySubtitle(territory))")
     }
@@ -394,15 +396,9 @@ struct TerritoryGridCard: View {
     let columns = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
     ScrollView {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            PersonGridCard(person: PreviewData.person,
-                           distanceText: "0.3 mi",
-                           heroHeight: 300)
-            PersonGridCard(person: PreviewData.newPerson,
-                           distanceText: nil,
-                           heroHeight: 250)
-            PersonGridCard(person: PreviewData.unlocatedPerson,
-                           distanceText: nil,
-                           heroHeight: 200)
+            PersonGridCard(person: PreviewData.person, heroHeight: 300)
+            PersonGridCard(person: PreviewData.newPerson, heroHeight: 250)
+            PersonGridCard(person: PreviewData.unlocatedPerson, heroHeight: 200)
         }
         .padding()
     }

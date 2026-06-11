@@ -8,18 +8,14 @@ import SwiftUI
 struct MapControlPanel: View {
     @Binding var mapLook: MapLook
     @Binding var showBreadcrumb: Bool
+    /// Open the Map Modes card (presented by the parent so the bottom sheet can step aside).
+    var onChooseStyle: () -> Void
     /// Re-frame the camera to show everyone (the opening overview).
     var onFrameAll: () -> Void
 
-    /// Whether the Maps-style "choose a look" panel is open.
-    @State private var showLookChooser = false
-
     var body: some View {
         VStack(spacing: 12) {
-            Button { showLookChooser = true } label: { controlGlyph(mapLook.symbol) }
-                .popover(isPresented: $showLookChooser) {
-                    lookChooser.presentationCompactAdaptation(.popover)
-                }
+            Button(action: onChooseStyle) { controlGlyph(mapLook.symbol) }
                 .accessibilityLabel("Map style")
             Button { showBreadcrumb.toggle() } label: {
                 controlGlyph(showBreadcrumb ? "point.topleft.down.curvedto.point.bottomright.up.fill"
@@ -30,8 +26,8 @@ struct MapControlPanel: View {
                 .accessibilityLabel("Show everything")
         }
         .padding(.trailing, 12)
-        // TEMP diagnostic: top placement to confirm the chooser popover is occluded by the sheet.
-        .padding(.top, 96)
+        // Clear the collapsed bottom sheet (its smallest detent is 120pt) with a little breathing room.
+        .padding(.bottom, 132)
     }
 
     private func controlGlyph(_ name: String) -> some View {
@@ -42,38 +38,6 @@ struct MapControlPanel: View {
             .background(.regularMaterial, in: Circle())
             .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
     }
-
-    /// A row of selectable look tiles, mirroring the Maps "Choose Map" panel.
-    private var lookChooser: some View {
-        HStack(spacing: 14) {
-            ForEach(MapLook.allCases) { look in
-                Button {
-                    mapLook = look
-                    showLookChooser = false
-                } label: {
-                    VStack(spacing: 7) {
-                        Image(systemName: look.symbol)
-                            .font(.title2)
-                            .foregroundStyle(.white)
-                            .frame(width: 60, height: 60)
-                            .background(look.swatch.gradient,
-                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(mapLook == look ? Color.accentColor : .clear,
-                                                  lineWidth: 3)
-                            }
-                        Text(look.label)
-                            .font(.caption)
-                            .fontWeight(mapLook == look ? .semibold : .regular)
-                            .foregroundStyle(mapLook == look ? Color.accentColor : .primary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(18)
-    }
 }
 
 #if DEBUG
@@ -82,6 +46,7 @@ struct MapControlPanel: View {
         Color.green.opacity(0.3).ignoresSafeArea()
         MapControlPanel(mapLook: .constant(.standard),
                         showBreadcrumb: .constant(false),
+                        onChooseStyle: {},
                         onFrameAll: {})
     }
 }
