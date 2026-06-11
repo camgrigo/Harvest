@@ -79,8 +79,6 @@ struct ExploreView: View {
     /// Your current location, used to show driving times in the Nearby strip.
     @State private var userLocation: CLLocation?
     @AppStorage("map.look") private var mapLook: MapLook = .standard
-    /// Whether the Maps-style "choose a look" panel is open.
-    @State private var showLookChooser = false
     /// The persistent bottom sheet (nearby items, search, and the selected place's details).
     @State private var showMapSheet = false
     /// Pushes a detail page — kept separate from `selected`, which drives the on-map callout.
@@ -107,7 +105,11 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             map
-                .overlay(alignment: .topTrailing) { mapControlsCluster }
+                .overlay(alignment: .topTrailing) {
+                    MapControlPanel(mapLook: $mapLook,
+                                    showBreadcrumb: $showBreadcrumb,
+                                    onFrameAll: frameAll)
+                }
                 .animation(.spring(duration: 0.3), value: selected)
                 .navigationDestination(item: $openTarget) { target in
                     switch target {
@@ -240,38 +242,6 @@ struct ExploreView: View {
         }
     }
 
-    // MARK: Look chooser
-
-    /// The right-side control cluster (Apple Maps style): the map-style chooser plus a "show
-    /// everything" button, sitting just below the system map controls.
-    private var mapControlsCluster: some View {
-        VStack(spacing: 12) {
-            Button { showLookChooser = true } label: { controlGlyph(mapLook.symbol) }
-                .popover(isPresented: $showLookChooser) {
-                    lookChooser.presentationCompactAdaptation(.popover)
-                }
-                .accessibilityLabel("Map style")
-            Button { showBreadcrumb.toggle() } label: {
-                controlGlyph(showBreadcrumb ? "point.topleft.down.curvedto.point.bottomright.up.fill"
-                                            : "point.topleft.down.curvedto.point.bottomright.up")
-            }
-            .accessibilityLabel(showBreadcrumb ? "Hide today's trail" : "Show today's trail")
-            Button { frameAll() } label: { controlGlyph("scope") }
-                .accessibilityLabel("Show everything")
-        }
-        .padding(.trailing, 12)
-        .padding(.top, 96)
-    }
-
-    private func controlGlyph(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 18, weight: .semibold))
-            .foregroundStyle(.primary)
-            .frame(width: 44, height: 44)
-            .background(.regularMaterial, in: Circle())
-            .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-    }
-
     /// Re-frame the camera to show everyone (the opening overview).
     private func frameAll() {
         Task {
@@ -279,38 +249,6 @@ struct ExploreView: View {
                 withAnimation(.easeInOut) { camera = .region(region) }
             }
         }
-    }
-
-    /// A row of selectable look tiles, mirroring the Maps "Choose Map" panel.
-    private var lookChooser: some View {
-        HStack(spacing: 14) {
-            ForEach(MapLook.allCases) { look in
-                Button {
-                    mapLook = look
-                    showLookChooser = false
-                } label: {
-                    VStack(spacing: 7) {
-                        Image(systemName: look.symbol)
-                            .font(.title2)
-                            .foregroundStyle(.white)
-                            .frame(width: 60, height: 60)
-                            .background(look.swatch.gradient,
-                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(mapLook == look ? Color.accentColor : .clear,
-                                                  lineWidth: 3)
-                            }
-                        Text(look.label)
-                            .font(.caption)
-                            .fontWeight(mapLook == look ? .semibold : .regular)
-                            .foregroundStyle(mapLook == look ? Color.accentColor : .primary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(18)
     }
 
     // MARK: Nearby strip
