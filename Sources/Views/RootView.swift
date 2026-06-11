@@ -5,26 +5,51 @@ import SwiftData
 /// This thin wrapper keeps the cross-cutting concerns: first-run onboarding, reminder-notification
 /// routing, and one-time migrations that tidy up legacy data.
 struct RootView: View {
+    /// The three top-level tabs. `selection` drives which is showing — and, for Map, whether the
+    /// bottom sheet is up.
+    private enum RootTab { case people, map, calendar }
+
     @EnvironmentObject private var notifications: NotificationCoordinator
     @Environment(\.modelContext) private var context
     @AppStorage("hasOnboarded") private var hasOnboarded = false
+
+    // The Map tab's content lives in `ExploreView`, but its bottom sheet is presented here, from the
+    // TabView, so the floating tab bar composites on top of the sheet (the Apple-Maps look). The map
+    // and the sheet share state through `mapModel`.
+    @State private var mapModel = MapModel()
+    @State private var selectedTab: RootTab = .people
+    @Query(filter: #Predicate<Person> { !$0.isArchived },
+           sort: \Person.createdAt, order: .reverse) private var people: [Person]
+    @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
 
     @State private var routedPerson: Person?
 
     private var isUITesting: Bool { ProcessInfo.processInfo.arguments.contains("-uitesting") }
 
     var body: some View {
-        TabView {
-            Tab("People", systemImage: "person.2.fill") {
+        TabView(selection: $selectedTab) {
+            Tab("People", systemImage: "person.2.fill", value: RootTab.people) {
                 PeoplePanelContent()
             }
-            Tab("Map", systemImage: "map") {
-                ExploreView()
+            Tab("Map", systemImage: "map", value: RootTab.map) {
+                ExploreView(model: mapModel)
             }
-            Tab("Calendar", systemImage: "calendar") {
+            Tab("Calendar", systemImage: "calendar", value: RootTab.calendar) {
                 ServicePlansView()
             }
         }
+            // The Map tab's bottom sheet. Presented here (not inside ExploreView) so the tab bar
+            // floats over it; visible only while Map is selected and nothing else has the screen.
+            .sheet(isPresented: Binding(
+                get: { selectedTab == .map && !mapModel.suppressSheet },
+                set: { _ in }
+            )) {
+                MapBottomSheet(model: mapModel, people: people, territories: territories)
+                    .presentationDetents([.height(120), .medium, .large])
+                    .presentationBackgroundInteraction(.enabled(upThrough: .large))
+                    .presentationDragIndicator(.visible)
+                    .interactiveDismissDisabled()
+            }
             .fullScreenCover(isPresented: Binding(
                 get: { !hasOnboarded },
                 set: { if !$0 { hasOnboarded = true } }

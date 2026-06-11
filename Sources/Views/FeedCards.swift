@@ -222,6 +222,16 @@ private extension View {
                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
             .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
     }
+
+    /// Same tile, but with a Liquid Glass background instead of a solid fill (used by the person
+    /// cells). Content sits on the glass; an embedded photo stays opaque over it.
+    func feedCardGlassSurface() -> some View {
+        self
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .glassEffect(.regular,
+                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+    }
 }
 
 // MARK: - Feed cards (masonry)
@@ -234,8 +244,8 @@ struct PersonGridCard: View {
     let heroHeight: CGFloat
 
     var body: some View {
-        // A solid tile: the text up top, and — when the visit is placed — the Look Around photo
-        // below it, rounded to the same corner radius as the card.
+        // A Liquid Glass tile: the text up top, and — when the visit is placed — the Look Around
+        // photo below it, rounded to the same corner radius as the card.
         VStack(alignment: .leading, spacing: 12) {
             content(onImage: false)
             if let coordinate = person.coordinate {
@@ -245,7 +255,7 @@ struct PersonGridCard: View {
                                                 style: .continuous))
             }
         }
-        .feedCardSurface()
+        .feedCardGlassSurface()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
     }

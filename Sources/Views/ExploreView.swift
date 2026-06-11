@@ -58,6 +58,10 @@ struct ExploreView: View {
     @Query(sort: \VisitLog.timestamp) private var visitLogs: [VisitLog]
     @Environment(\.modelContext) private var context
 
+    /// Shared with the bottom sheet, which `RootView` presents from the TabView so the tab bar
+    /// floats over it. Holds the selection, nearby strip, route ETA, and push target.
+    @Bindable var model: MapModel
+
     /// The active congregation boundary (most recently created), if any.
     private var congregationBoundary: CongregationBoundary? { congregationBoundaries.first }
     /// Territories that have a drawable polygon (at least a triangle).
@@ -69,24 +73,16 @@ struct ExploreView: View {
     private static let congregationStroke = Color.purple.opacity(0.8)
 
     @State private var camera: MapCameraPosition = .userLocation(fallback: .automatic)
-    @State private var selected: MapTarget?
     @State private var dropped: DroppedPin?
     @State private var locationManager = CLLocationManager()
     @StateObject private var locator = CurrentLocationProvider()
     @State private var didSetDefaultCamera = false
     /// The map's current visible region, tracked so the Nearby strip reflects what's on screen.
     @State private var visibleRegion: MKCoordinateRegion?
-    /// Your current location, used to show driving times in the Nearby strip.
-    @State private var userLocation: CLLocation?
     @AppStorage("map.look") private var mapLook: MapLook = .standard
-    /// The persistent bottom sheet (nearby items, search, and the selected place's details).
-    @State private var showMapSheet = false
-    /// Pushes a detail page — kept separate from `selected`, which drives the on-map callout.
-    @State private var openTarget: MapTarget?
-    /// Driving route from you to the selected person: polyline points + ETA, shown on the map and
-    /// in the callout.
+    /// Driving route from you to the selected person: polyline points, drawn on the map. (The ETA
+    /// minutes live on `model`, shared with the sheet's callout.)
     @State private var routeCoords: [CLLocationCoordinate2D] = []
-    @State private var routeMinutes: Int?
 
     // Today's trail breadcrumb.
     @AppStorage("map.showBreadcrumb") private var showBreadcrumb = false
@@ -110,14 +106,18 @@ struct ExploreView: View {
                                     showBreadcrumb: $showBreadcrumb,
                                     onFrameAll: frameAll)
                 }
-                .animation(.spring(duration: 0.3), value: selected)
-                .navigationDestination(item: $openTarget) { target in
+                .animation(.spring(duration: 0.3), value: model.selected)
+                .navigationDestination(item: $model.openTarget) { target in
                     switch target {
                     case .person(let person):       PersonDetailView(person: person)
                     case .territory(let territory): TerritoryDetailView(territory: territory)
                     }
                 }
-                .onChange(of: selected) { _, newValue in handleSelect(newValue) }
+                .onChange(of: model.selected) { _, newValue in handleSelect(newValue) }
+                // A pushed detail (or a popped one) toggles whether the sheet should stand aside.
+                .onChange(of: model.openTarget) { _, target in
+                    if target == nil { model.suppressSheet = false }
+                }
                 .toolbar(.hidden, for: .navigationBar)
                 .onAppear { locationManager.requestWhenInUseAuthorization() }
                 .task {
@@ -129,40 +129,16 @@ struct ExploreView: View {
                     }
                 }
                 .task {
-                    if userLocation == nil { userLocation = await locator.current() }
+                    if model.userLocation == nil { model.userLocation = await locator.current() }
                 }
                 .sheet(item: $dropped) { pin in
                     LocationActionView(coordinate: pin.coordinate)
                 }
-                // A dropped pin needs its own sheet, and SwiftUI allows one presentation per view —
-                // so step the persistent places sheet aside while the pin sheet is up.
-                .onChange(of: dropped == nil) { _, isNil in showMapSheet = isNil }
+                // A dropped pin gets its own sheet — step the map's bottom sheet aside while it's up.
+                .onChange(of: dropped?.id) { _, _ in model.suppressSheet = (dropped != nil) }
                 .task {
                     // Keep the breadcrumb store small: drop logs older than 30 days on open.
                     VisitTracker.purgeOld(from: context)
-                }
-                // The items live in a native bottom sheet (Apple Maps style) that stays up while the
-                // Map tab is on screen. presentationBackgroundInteraction keeps the map tappable.
-                // Switching tabs (or pushing a detail) fires onDisappear, which steps the sheet aside;
-                // returning re-presents it.
-                .onAppear { showMapSheet = true }
-                .onDisappear { showMapSheet = false }
-                .sheet(isPresented: $showMapSheet) {
-                    MapBottomSheet(
-                        selected: $selected,
-                        people: people, territories: territories,
-                        nearby: nearbyTargets, userLocation: userLocation,
-                        routeMinutes: routeMinutes,
-                        title: { title(of: $0) }, subtitle: { subtitle(of: $0) },
-                        // Dismiss the sheet alongside the push, or the detail lands underneath it.
-                        onOpen: { showMapSheet = false; openTarget = $0 },
-                        onDirections: { if let c = coordinate(of: $0) { openInMaps(c, name: title(of: $0)) } },
-                        onPick: { jump(to: $0) }
-                    )
-                    .presentationDetents([.height(120), .medium, .large])
-                    .presentationBackgroundInteraction(.enabled(upThrough: .large))
-                    .presentationDragIndicator(.visible)
-                    .interactiveDismissDisabled()
                 }
         }
     }
@@ -171,7 +147,7 @@ struct ExploreView: View {
 
     private var map: some View {
         MapReader { proxy in
-            Map(position: $camera, selection: $selected) {
+            Map(position: $camera, selection: $model.selected) {
                 UserAnnotation()
                 // Territory boundaries: shaded polygons drawn under the markers so pins stay tappable.
                 ForEach(boundedTerritories) { territory in
@@ -223,6 +199,7 @@ struct ExploreView: View {
             .tint(.white)
             .onMapCameraChange(frequency: .onEnd) { context in
                 visibleRegion = context.region
+                model.nearby = nearbyTargets(in: context.region)
             }
             .gesture(dropPinGesture(proxy))
             .ignoresSafeArea(edges: .bottom)
@@ -253,9 +230,8 @@ struct ExploreView: View {
 
     // MARK: Nearby strip
 
-    /// People + territories whose pin sits inside the current viewport, nearest the center first.
-    private var nearbyTargets: [MapTarget] {
-        guard let region = visibleRegion else { return [] }
+    /// People + territories whose pin sits inside the given viewport, nearest the center first.
+    private func nearbyTargets(in region: MKCoordinateRegion) -> [MapTarget] {
         let center = CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)
         func distance(_ c: CLLocationCoordinate2D) -> CLLocationDistance {
             CLLocation(latitude: c.latitude, longitude: c.longitude).distance(from: center)
@@ -272,13 +248,6 @@ struct ExploreView: View {
 
     // MARK: Selection · callout · route
 
-    private func coordinate(of target: MapTarget) -> CLLocationCoordinate2D? {
-        switch target {
-        case .person(let p):    p.coordinate
-        case .territory(let t): t.coordinate
-        }
-    }
-
     /// On selecting an item: center on it and, for a located person, draw the driving route.
     private func handleSelect(_ target: MapTarget?) {
         computeRoute(to: target)
@@ -289,30 +258,21 @@ struct ExploreView: View {
         }
     }
 
-    /// Pick a result from search: focus its pin (callout); if it has no location, just open it.
-    private func jump(to target: MapTarget) {
-        if coordinate(of: target) != nil {
-            selected = target
-        } else {
-            openTarget = target
-        }
-    }
-
     private var routeColor: Color {
-        if case .person(let p) = selected { return p.theme.color }
+        if case .person(let p) = model.selected { return p.theme.color }
         return .blue
     }
 
     private func computeRoute(to target: MapTarget?) {
         routeCoords = []
-        routeMinutes = nil
-        guard let userLocation,
+        model.routeMinutes = nil
+        guard let userLocation = model.userLocation,
               case .person(let person)? = target,
               let dest = person.coordinate else { return }
         Task {
             if let result = await Self.route(from: userLocation, to: dest) {
                 routeCoords = result.coords
-                routeMinutes = result.minutes
+                model.routeMinutes = result.minutes
             }
         }
     }
@@ -332,31 +292,6 @@ struct ExploreView: View {
         var coords = [CLLocationCoordinate2D](repeating: CLLocationCoordinate2D(), count: count)
         route.polyline.getCoordinates(&coords, range: NSRange(location: 0, length: count))
         return (coords, max(1, Int((route.expectedTravelTime / 60).rounded())))
-    }
-
-    private func openInMaps(_ coordinate: CLLocationCoordinate2D, name: String) {
-        let item = MKMapItem(location: CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude),
-                             address: nil)
-        item.name = name
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
-    }
-
-    private func title(of target: MapTarget) -> String {
-        switch target {
-        case .person(let p):    p.name
-        case .territory(let t): t.name
-        }
-    }
-
-    private func subtitle(of target: MapTarget) -> String {
-        switch target {
-        case .person(let p):
-            if let note = p.sortedEntries.last?.text, !note.isEmpty { return note }
-            if !p.headline.isEmpty { return p.headline }
-            return p.interest.label
-        case .territory(let t):
-            return territorySubtitle(t)
-        }
     }
 
     // MARK: Clustering
@@ -514,36 +449,31 @@ private enum MapItem: Identifiable {
 
 /// The Apple-Maps-style bottom sheet for the Map tab: search over the nearby places, or — when one
 /// is selected on the map — that place's details with Open / Directions.
-private struct MapBottomSheet: View {
-    @Binding var selected: MapTarget?
+///
+/// Presented from the `TabView` in `RootView` (not from inside the Map tab) so the floating tab bar
+/// stays on top of it. Shares the map's selection / nearby / route through `MapModel`.
+struct MapBottomSheet: View {
+    @Bindable var model: MapModel
     let people: [Person]
     let territories: [Territory]
-    let nearby: [MapTarget]
-    let userLocation: CLLocation?
-    let routeMinutes: Int?
-    let title: (MapTarget) -> String
-    let subtitle: (MapTarget) -> String
-    var onOpen: (MapTarget) -> Void
-    var onDirections: (MapTarget) -> Void
-    var onPick: (MapTarget) -> Void
 
     @State private var query = ""
 
     var body: some View {
         NavigationStack {
             Group {
-                if let sel = selected {
+                if let sel = model.selected {
                     placeDetail(sel)
                 } else {
                     placeList
                 }
             }
-            .navigationTitle(selected.map(title) ?? "Places")
+            .navigationTitle(model.selected.map(mapTargetTitle) ?? "Places")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if selected != nil {
+                if model.selected != nil {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { selected = nil } label: { Label("Back", systemImage: "chevron.left") }
+                        Button { model.selected = nil } label: { Label("Back", systemImage: "chevron.left") }
                     }
                 }
             }
@@ -554,7 +484,7 @@ private struct MapBottomSheet: View {
     /// Nearby places, or name-filtered results while searching.
     private var results: [MapTarget] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return nearby }
+        guard !q.isEmpty else { return model.nearby }
         return people.filter { $0.name.lowercased().contains(q) }.map(MapTarget.person)
             + territories.filter { $0.name.lowercased().contains(q) }.map(MapTarget.territory)
     }
@@ -567,13 +497,13 @@ private struct MapBottomSheet: View {
         } else {
             List(results, id: \.self) { target in
                 Button {
-                    if query.isEmpty { selected = target } else { onPick(target); query = "" }
+                    if query.isEmpty { model.selected = target } else { model.pick(target); query = "" }
                 } label: {
                     HStack(spacing: 12) {
                         icon(target)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(title(target)).font(.body.weight(.semibold)).fontDesign(.serif)
-                            Text(subtitle(target)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Text(mapTargetTitle(target)).font(.body.weight(.semibold)).fontDesign(.serif)
+                            Text(mapTargetSubtitle(target)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
                         Spacer(minLength: 0)
                         Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
@@ -589,16 +519,16 @@ private struct MapBottomSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 12) {
                 icon(target)
-                Text(subtitle(target)).font(.subheadline).foregroundStyle(.secondary)
+                Text(mapTargetSubtitle(target)).font(.subheadline).foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
-                Button { onOpen(target) } label: {
+                Button { model.open(target) } label: {
                     Label("Open", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                Button { onDirections(target) } label: {
-                    Label(routeMinutes.map { "\($0) min" } ?? "Directions", systemImage: "car.fill")
+                Button { model.directions(target) } label: {
+                    Label(model.routeMinutes.map { "\($0) min" } ?? "Directions", systemImage: "car.fill")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
