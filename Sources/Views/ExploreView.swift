@@ -81,10 +81,6 @@ struct ExploreView: View {
     @AppStorage("map.look") private var mapLook: MapLook = .standard
     /// Whether the Maps-style "choose a look" panel is open.
     @State private var showLookChooser = false
-    /// When set (presented full-screen from the People tab), shows an X to dismiss.
-    var onClose: (() -> Void)? = nil
-    /// Live offset while swiping in from the left edge to dismiss the full-screen map.
-    @State private var dismissDrag: CGFloat = 0
     /// The persistent bottom sheet (nearby items, search, and the selected place's details).
     @State private var showMapSheet = false
     /// Pushes a detail page — kept separate from `selected`, which drives the on-map callout.
@@ -112,8 +108,6 @@ struct ExploreView: View {
         NavigationStack {
             map
                 .overlay(alignment: .topTrailing) { mapControlsCluster }
-                .overlay(alignment: .leading) { dismissEdge }
-                .overlay(alignment: .topLeading) { closeButton }
                 .animation(.spring(duration: 0.3), value: selected)
                 .navigationDestination(item: $openTarget) { target in
                     switch target {
@@ -138,12 +132,17 @@ struct ExploreView: View {
                 .sheet(item: $dropped) { pin in
                     LocationActionView(coordinate: pin.coordinate)
                 }
+                // A dropped pin needs its own sheet, and SwiftUI allows one presentation per view —
+                // so step the persistent places sheet aside while the pin sheet is up.
+                .onChange(of: dropped == nil) { _, isNil in showMapSheet = isNil }
                 .task {
                     // Keep the breadcrumb store small: drop logs older than 30 days on open.
                     VisitTracker.purgeOld(from: context)
                 }
                 // The items live in a native bottom sheet (Apple Maps style) that stays up while the
                 // Map tab is on screen. presentationBackgroundInteraction keeps the map tappable.
+                // Switching tabs (or pushing a detail) fires onDisappear, which steps the sheet aside;
+                // returning re-presents it.
                 .onAppear { showMapSheet = true }
                 .onDisappear { showMapSheet = false }
                 .sheet(isPresented: $showMapSheet) {
@@ -153,7 +152,8 @@ struct ExploreView: View {
                         nearby: nearbyTargets, userLocation: userLocation,
                         routeMinutes: routeMinutes,
                         title: { title(of: $0) }, subtitle: { subtitle(of: $0) },
-                        onOpen: { openTarget = $0 },
+                        // Dismiss the sheet alongside the push, or the detail lands underneath it.
+                        onOpen: { showMapSheet = false; openTarget = $0 },
                         onDirections: { if let c = coordinate(of: $0) { openInMaps(c, name: title(of: $0)) } },
                         onPick: { jump(to: $0) }
                     )
@@ -163,7 +163,6 @@ struct ExploreView: View {
                     .interactiveDismissDisabled()
                 }
         }
-        .offset(x: dismissDrag)
     }
 
     // MARK: Map
@@ -279,51 +278,6 @@ struct ExploreView: View {
             if let region = await defaultRegion() {
                 withAnimation(.easeInOut) { camera = .region(region) }
             }
-        }
-    }
-
-    /// A thin invisible strip down the left edge; a rightward drag here dismisses the full-screen
-    /// map, following your finger and snapping back if you don't pull far enough.
-    @ViewBuilder
-    private var dismissEdge: some View {
-        if onClose != nil {
-            Color.clear
-                .frame(width: 24)
-                .frame(maxHeight: .infinity)
-                .contentShape(Rectangle())
-                .gesture(edgeDismissGesture)
-        }
-    }
-
-    private var edgeDismissGesture: some Gesture {
-        DragGesture(minimumDistance: 12)
-            .onChanged { value in
-                dismissDrag = max(0, value.translation.width)
-            }
-            .onEnded { value in
-                if value.translation.width > 100 {
-                    onClose?()
-                } else {
-                    withAnimation(.spring) { dismissDrag = 0 }
-                }
-            }
-    }
-
-    /// Dismiss control, shown only when this map is presented full-screen (from the People tab).
-    @ViewBuilder
-    private var closeButton: some View {
-        if let onClose {
-            Button { onClose() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 44, height: 44)
-                    .background(.regularMaterial, in: Circle())
-                    .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
-            }
-            .padding(.leading, 12)
-            .padding(.top, 8)
-            .accessibilityLabel("Close map")
         }
     }
 
@@ -616,188 +570,6 @@ private enum MapItem: Identifiable {
             }
         case .cluster(let id, _, _):
             return "c-\(id)"
-        }
-    }
-}
-
-/// A searchable list of people and territories; picking one calls `onSelect` to jump the map there.
-private struct MapSearchView: View {
-    let people: [Person]
-    let territories: [Territory]
-    let onSelect: (MapTarget) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-
-    private var matchedPeople: [Person] {
-        query.isEmpty ? people
-            : people.filter { $0.name.localizedCaseInsensitiveContains(query)
-                || $0.headline.localizedCaseInsensitiveContains(query) }
-    }
-    private var matchedTerritories: [Territory] {
-        query.isEmpty ? territories
-            : territories.filter { $0.name.localizedCaseInsensitiveContains(query) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if !matchedPeople.isEmpty {
-                    Section("People") {
-                        ForEach(matchedPeople) { person in
-                            Button { onSelect(.person(person)) } label: {
-                                Label(person.name, systemImage: person.interest.symbol)
-                            }
-                        }
-                    }
-                }
-                if !matchedTerritories.isEmpty {
-                    Section("Territories") {
-                        ForEach(matchedTerritories) { territory in
-                            Button { onSelect(.territory(territory)) } label: {
-                                Label(territory.name, systemImage: "map")
-                            }
-                        }
-                    }
-                }
-            }
-            .searchable(text: $query, prompt: "Find a person or territory")
-            .navigationTitle("Search")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Cancel") { dismiss() } }
-            }
-        }
-    }
-}
-
-/// Session cache of driving ETAs (minutes), keyed by user→destination, so the strip doesn't
-/// re-request the same route as it re-renders. Main-actor isolated.
-@MainActor
-enum DriveTimeCache {
-    static var minutes: [String: Int] = [:]
-    static func key(_ c: CLLocationCoordinate2D) -> String {
-        String(format: "%.4f,%.4f", c.latitude, c.longitude)
-    }
-}
-
-/// A compact card in the Map tab's Nearby strip: an icon, the item's name, and the driving time
-/// from where you are now.
-private struct NearbyCard: View {
-    let target: MapTarget
-    let userLocation: CLLocation?
-
-    @State private var driveMinutes: Int?
-
-    var body: some View {
-        HStack(spacing: 10) {
-            iconView
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .fontDesign(.serif)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                driveLabel
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(10)
-        .frame(width: 168, alignment: .leading)
-        .background(.regularMaterial,
-                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 3)
-        .task(id: cacheKey) { await loadETA() }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(a11yLabel)
-    }
-
-    private var a11yLabel: String {
-        if let driveMinutes { return "\(title), \(driveMinutes) minutes by car" }
-        return title
-    }
-
-    @ViewBuilder
-    private var driveLabel: some View {
-        if let driveMinutes {
-            Label("\(driveMinutes) min", systemImage: "car.fill")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        } else if userLocation != nil, coordinate != nil {
-            Label("…", systemImage: "car.fill")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-        }
-    }
-
-    private var title: String {
-        switch target {
-        case .person(let p):    p.name
-        case .territory(let t): t.name
-        }
-    }
-
-    private var coordinate: CLLocationCoordinate2D? {
-        switch target {
-        case .person(let p):    p.coordinate
-        case .territory(let t): t.coordinate
-        }
-    }
-
-    /// Stable per (user, destination); also drives `.task(id:)` so the ETA loads once.
-    private var cacheKey: String? {
-        guard let user = userLocation, let dest = coordinate else { return nil }
-        return "\(DriveTimeCache.key(user.coordinate))->\(DriveTimeCache.key(dest))"
-    }
-
-    private func loadETA() async {
-        guard let key = cacheKey, let user = userLocation, let dest = coordinate else { return }
-        if let cached = DriveTimeCache.minutes[key] { driveMinutes = cached; return }
-        let minutes = await Self.drivingMinutes(from: user, to: dest)
-            ?? Self.estimatedMinutes(from: user, to: dest)
-        DriveTimeCache.minutes[key] = minutes
-        driveMinutes = minutes
-    }
-
-    /// Real driving ETA via MapKit routing, in whole minutes.
-    private nonisolated static func drivingMinutes(from user: CLLocation,
-                                                   to dest: CLLocationCoordinate2D) async -> Int? {
-        let request = MKDirections.Request()
-        request.source = MKMapItem(location: user, address: nil)
-        request.destination = MKMapItem(
-            location: CLLocation(latitude: dest.latitude, longitude: dest.longitude), address: nil)
-        request.transportType = .automobile
-        guard let eta = try? await MKDirections(request: request).calculateETA() else { return nil }
-        return max(1, Int((eta.expectedTravelTime / 60).rounded()))
-    }
-
-    /// Offline fallback when routing is throttled/unavailable: straight-line distance at ~30 mph.
-    private nonisolated static func estimatedMinutes(from user: CLLocation,
-                                                     to dest: CLLocationCoordinate2D) -> Int {
-        let meters = user.distance(from: CLLocation(latitude: dest.latitude, longitude: dest.longitude))
-        return max(1, Int((meters / 13.4 / 60).rounded()))
-    }
-
-    @ViewBuilder
-    private var iconView: some View {
-        switch target {
-        case .person(let p):
-            let color: Color = p.isDue ? .red : p.theme.color
-            Image(systemName: p.interest.symbol)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(color)
-                .frame(width: 34, height: 34)
-                .background(color.opacity(0.14), in: Circle())
-        case .territory:
-            Image("Territory")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 19, height: 19)
-                .foregroundStyle(.orange)
-                .frame(width: 34, height: 34)
-                .background(Color.orange.opacity(0.15), in: Circle())
         }
     }
 }

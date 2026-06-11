@@ -68,9 +68,17 @@ extension Person {
 @MainActor
 enum LookAroundCache {
     static var images: [String: UIImage] = [:]
+    /// Bounded so a long-lived session can't accumulate snapshots without limit (~120 stills ≈
+    /// tens of MB). Eviction is a simple reset — the next scroll re-fills what's visible.
+    private static let maxEntries = 120
 
     static func key(for coordinate: CLLocationCoordinate2D) -> String {
         String(format: "%.5f,%.5f", coordinate.latitude, coordinate.longitude)
+    }
+
+    static func store(_ image: UIImage, for key: String) {
+        if images.count >= maxEntries { images.removeAll(keepingCapacity: true) }
+        images[key] = image
     }
 }
 
@@ -129,7 +137,7 @@ struct RowLookAround: View {
                 return
             }
             if let loaded = await Self.loadImage(at: coordinate) {
-                LookAroundCache.images[key] = loaded
+                LookAroundCache.store(loaded, for: key)
                 image = loaded
             }
             didLoad = true
@@ -204,21 +212,15 @@ func territorySubtitle(_ territory: Territory) -> String {
 let feedCardCornerRadius: CGFloat = 30
 
 private extension View {
-    /// The card surface shared by the territory list cells: Liquid Glass over a soft tinted
-    /// backdrop (glass alone is see-through), in a large continuous rounded rect — the iOS 27
-    /// Siri tile look.
+    /// The card surface shared by the list cells: a solid rounded tile with a soft shadow, in the
+    /// large continuous radius of the iOS 27 Siri tiles.
     func feedCardSurface() -> some View {
         self
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .glassEffect(.clear,
-                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .background {
-                LinearGradient(colors: [Color.accentColor.opacity(0.45),
-                                        Color.accentColor.opacity(0.18)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+            .background(Color(.secondarySystemGroupedBackground),
+                        in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
+            .shadow(color: .black.opacity(0.10), radius: 10, x: 0, y: 4)
     }
 }
 
@@ -232,29 +234,20 @@ struct PersonGridCard: View {
     let heroHeight: CGFloat
 
     var body: some View {
-        // Clear Liquid Glass covers the whole cell, frosting the backdrop behind it: the Look Around
-        // photo for a located visit, or a soft theme-tinted gradient otherwise.
-        content(onImage: true)
-            .shadow(color: .black.opacity(0.55), radius: 4, x: 0, y: 1)
-            .padding(16)
-            .frame(maxWidth: .infinity,
-                   minHeight: person.coordinate != nil ? heroHeight : nil,
-                   alignment: .topLeading)
-            .glassEffect(.clear,
-                         in: RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .background {
-                if let coordinate = person.coordinate {
-                    RowLookAround(coordinate: coordinate, feather: false)
-                } else {
-                    LinearGradient(colors: [person.theme.color.opacity(0.55),
-                                            person.theme.color.opacity(0.22)],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                }
+        // A solid tile: the text up top, and — when the visit is placed — the Look Around photo
+        // below it, rounded to the same corner radius as the card.
+        VStack(alignment: .leading, spacing: 12) {
+            content(onImage: false)
+            if let coordinate = person.coordinate {
+                RowLookAround(coordinate: coordinate, feather: false)
+                    .frame(height: max(90, heroHeight - 110))
+                    .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius - 8,
+                                                style: .continuous))
             }
-            .clipShape(RoundedRectangle(cornerRadius: feedCardCornerRadius, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 10, x: 0, y: 4)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(accessibilityText)
+        }
+        .feedCardSurface()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 
     /// A clean, single VoiceOver readout for the card: name, status/due, and the gist.

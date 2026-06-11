@@ -119,13 +119,20 @@ final class ReminderScheduler {
     /// schedule every repeat forever.
     static let maxPlanOccurrences = 6
 
+    /// Bumped on each regenerate so an older in-flight call (suspended at its await) abandons its
+    /// work instead of clearing reminders a newer call just scheduled.
+    private var regenerateGeneration = 0
+
     /// Cancel every pending recurring-plan reminder, then reschedule a rolling window from the
     /// current set of plans. Run at launch (and after a plan is added/edited/deleted) so passed
     /// occurrences roll off, newly-in-range ones get scheduled, and deleted/edited plans don't
     /// leave orphaned reminders. Honors the user's `NotificationPolicy`.
     func regenerateRecurringReminders(plans: [ServicePlan], policy: NotificationPolicy? = nil) async {
+        regenerateGeneration += 1
+        let generation = regenerateGeneration
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
+        guard generation == regenerateGeneration else { return }   // superseded while suspended
         let stale = pending.map(\.identifier).filter { $0.hasPrefix(Self.planPrefix) }
         if !stale.isEmpty { center.removePendingNotificationRequests(withIdentifiers: stale) }
 
