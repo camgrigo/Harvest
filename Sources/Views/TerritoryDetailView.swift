@@ -42,6 +42,8 @@ struct TerritoryDetailView: View {
 
     // Answered → promote flow
     @State private var answeredDoor: NotAtHome?
+    // PROTOTYPE: view/add not-at-homes on a map instead of the list.
+    @State private var showDoorsMap = false
 
     // Add-by-typing + nearby suggestions
     @State private var search = TerritoryAddressSearch()
@@ -57,6 +59,10 @@ struct TerritoryDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { showDoorsMap = true } label: { Image(systemName: "map") }
+                    .accessibilityLabel("Not-at-homes on map")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: shareText) { Image(systemName: "square.and.arrow.up") }
             }
             ToolbarItem(placement: .topBarTrailing) { overflowMenu }
@@ -68,6 +74,9 @@ struct TerritoryDetailView: View {
                 addedCount += 1
                 withAnimation { notice = confirmation }
             }
+        }
+        .fullScreenCover(isPresented: $showDoorsMap) {
+            TerritoryDoorsMap(territory: territory) { answeredDoor = $0 }
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
