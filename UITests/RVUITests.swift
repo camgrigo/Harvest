@@ -215,10 +215,12 @@ final class RVUITests: XCTestCase {
         XCTAssertTrue(waitForReplies(app, count: 2), "Summarize should produce a reply")
     }
 
-    /// Switches to the Map tab and waits for its controls to appear.
+    /// Switches the combined People tab to its Map view via the view-switcher menu, and waits for
+    /// the map controls to appear.
     private func openMap(_ app: XCUIApplication) {
+        app.buttons["Switch view"].firstMatch.tap()
         app.buttons["Map"].firstMatch.tap()
-        _ = app.buttons["Show everything"].waitForExistence(timeout: 5)
+        _ = app.buttons["Show everything"].waitForExistence(timeout: 8)
     }
 
     /// The Map tab shows the map with its control cluster.

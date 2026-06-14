@@ -5,18 +5,13 @@ import SwiftData
 /// This thin wrapper keeps the cross-cutting concerns: first-run onboarding, reminder-notification
 /// routing, and one-time migrations that tidy up legacy data.
 struct RootView: View {
-    /// The three top-level tabs. `selection` drives which is showing — and, for Map, whether the
-    /// bottom sheet is up.
-    private enum RootTab { case people, map, calendar }
+    /// The two top-level tabs. People + Map are one tab now, switched in-place via the view menu.
+    private enum RootTab { case people, calendar }
 
     @EnvironmentObject private var notifications: NotificationCoordinator
     @Environment(\.modelContext) private var context
     @AppStorage("hasOnboarded") private var hasOnboarded = false
 
-    // The Map tab's content lives in `ExploreView`, but its bottom sheet is presented here, from the
-    // TabView, so the floating tab bar composites on top of the sheet (the Apple-Maps look). The map
-    // and the sheet share state through `mapModel`.
-    @State private var mapModel = MapModel()
     @State private var selectedTab: RootTab = .people
 
     @State private var routedPerson: Person?
@@ -26,10 +21,7 @@ struct RootView: View {
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab("People", systemImage: "person.2.fill", value: RootTab.people) {
-                PeoplePanelContent()
-            }
-            Tab("Map", systemImage: "map", value: RootTab.map) {
-                ExploreView(model: mapModel)
+                PeopleMapContainer()
             }
             Tab("Calendar", systemImage: "calendar", value: RootTab.calendar) {
                 ServicePlansView()

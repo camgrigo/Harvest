@@ -33,6 +33,8 @@ struct PeoplePanelContent: View {
     @Query(filter: #Predicate<Person> { !$0.isArchived },
            sort: \Person.createdAt, order: .reverse) private var people: [Person]
     @Query(sort: \Territory.createdAt, order: .reverse) private var territories: [Territory]
+    /// List vs map for the combined People tab — driven by the view-switcher menu.
+    @Binding var mode: PeopleViewMode
     @State private var selected: MapTarget?
 
     @Environment(\.modelContext) private var context
@@ -158,8 +160,8 @@ struct PeoplePanelContent: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         Picker("Sort by", selection: $sort) {
-                            ForEach(SortMode.allCases) { mode in
-                                Label(mode.label, systemImage: mode.symbol).tag(mode)
+                            ForEach(SortMode.allCases) { sortMode in
+                                Label(sortMode.label, systemImage: sortMode.symbol).tag(sortMode)
                             }
                         }
                     } label: {
@@ -167,6 +169,7 @@ struct PeoplePanelContent: View {
                     }
                     .accessibilityLabel("Sort")
                 }
+                ToolbarItem(placement: .topBarTrailing) { ViewModeMenu(mode: $mode) }
             }
             .safeAreaInset(edge: .bottom) { notebookComposer }
             .navigationDestination(item: $selected) { target in
@@ -455,7 +458,7 @@ func balanceIntoColumns<T>(_ items: [T], height: (T) -> CGFloat) -> (left: [T], 
 
 #if DEBUG
 #Preview("People panel") {
-    PeoplePanelContent()
+    PeoplePanelContent(mode: .constant(.list))
         .modelContainer(PreviewData.container)
 }
 #endif

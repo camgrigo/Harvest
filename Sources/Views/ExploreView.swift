@@ -61,6 +61,8 @@ struct ExploreView: View {
     /// Shared with the bottom sheet, which `RootView` presents from the TabView so the tab bar
     /// floats over it. Holds the selection, nearby strip, route ETA, and push target.
     @Bindable var model: MapModel
+    /// List vs map for the combined People tab — flipped by the floating view-switcher.
+    @Binding var mode: PeopleViewMode
 
     /// The active congregation boundary (most recently created), if any.
     private var congregationBoundary: CongregationBoundary? { congregationBoundaries.first }
@@ -105,6 +107,7 @@ struct ExploreView: View {
     var body: some View {
         NavigationStack {
             map
+                .overlay(alignment: .topTrailing) { modeSwitcher }
                 .overlay(alignment: .bottomTrailing) {
                     MapControlPanel(mapLook: $mapLook,
                                     showBreadcrumb: $showBreadcrumb,
@@ -161,6 +164,26 @@ struct ExploreView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: model.suppressSheet)
+    }
+
+    /// Floating Map/List switcher (top-trailing), the map's equivalent of the list's toolbar menu.
+    private var modeSwitcher: some View {
+        Menu {
+            Picker("View", selection: $mode) {
+                Label("Map", systemImage: "map").tag(PeopleViewMode.map)
+                Label("List", systemImage: "list.bullet").tag(PeopleViewMode.list)
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 44, height: 44)
+                .background(.regularMaterial, in: Circle())
+                .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+        }
+        .accessibilityLabel("Switch view")
+        .padding(.trailing, 12)
+        .padding(.top, 8)
     }
 
     // MARK: Map
@@ -612,7 +635,7 @@ struct MapBottomSheet: View {
 #Preview("ExploreView") {
     let model = MapModel()
     model.nearby = PreviewData.people.map { MapTarget.person($0) }
-    return ExploreView(model: model)
+    return ExploreView(model: model, mode: .constant(.map))
         .modelContainer(PreviewData.container)
 }
 
