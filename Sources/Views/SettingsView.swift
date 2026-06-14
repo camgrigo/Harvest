@@ -83,7 +83,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Automatic backup")
                 } footer: {
-                    Text("When on, Trellis writes an encrypted daily backup to your iCloud Drive using the passphrase above. Needs iCloud Drive enabled.")
+                    Text("When on, Service Day writes an encrypted daily backup to your iCloud Drive using the passphrase above. Needs iCloud Drive enabled.")
                 }
 
                 Section {

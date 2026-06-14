@@ -7,7 +7,7 @@ import Foundation
 /// chatbot-first front door for hands-free capture while you're at the door.
 struct AddReturnVisitIntent: AppIntent {
     static let title: LocalizedStringResource = "Add Return Visit"
-    static let description = IntentDescription("Creates a new return visit in Trellis.")
+    static let description = IntentDescription("Creates a new return visit in Service Day.")
 
     @Parameter(title: "Name", requestValueDialog: "Who did you meet?")
     var name: String
@@ -60,7 +60,7 @@ struct WhoIsDueIntent: AppIntent {
 /// Add a note to a person's page — finds them by name, or starts a page if they're new.
 struct AddNoteIntent: AppIntent {
     static let title: LocalizedStringResource = "Add a Note"
-    static let description = IntentDescription("Adds a note to a person's page in Trellis.")
+    static let description = IntentDescription("Adds a note to a person's page in Service Day.")
 
     @Parameter(title: "Name", requestValueDialog: "Whose page is this note for?")
     var name: String
@@ -126,7 +126,7 @@ struct LogNotAtHomeIntent: AppIntent {
 /// Start a new house-to-house territory.
 struct StartTerritoryIntent: AppIntent {
     static let title: LocalizedStringResource = "Start a Territory"
-    static let description = IntentDescription("Creates a new house-to-house territory in Trellis.")
+    static let description = IntentDescription("Creates a new house-to-house territory in Service Day.")
 
     @Parameter(title: "Name", requestValueDialog: "What should the territory be called?")
     var name: String
@@ -145,25 +145,25 @@ struct StartTerritoryIntent: AppIntent {
     }
 }
 
-/// Back up Trellis on demand from Siri / Shortcuts — writes an encrypted backup to iCloud Drive
+/// Back up Service Day on demand from Siri / Shortcuts — writes an encrypted backup to iCloud Drive
 /// and confirms. Uses the passphrase saved in Settings if there is one, or one passed in.
 struct BackupHarvestIntent: AppIntent {
-    static let title: LocalizedStringResource = "Back up Trellis"
+    static let title: LocalizedStringResource = "Back up Service Day"
     static let description = IntentDescription(
-        "Creates an encrypted backup of your Trellis data to iCloud Drive.")
+        "Creates an encrypted backup of your Service Day data to iCloud Drive.")
 
     @Parameter(title: "Passphrase", requestValueDialog: "Enter your backup passphrase")
     var passphrase: String?
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Back up Trellis")
+        Summary("Back up Service Day")
     }
 
     enum IntentError: LocalizedError {
         case missingPassphrase
         var errorDescription: String? {
             switch self {
-            case .missingPassphrase: "No backup passphrase is set. Add one in Trellis's Backup settings first."
+            case .missingPassphrase: "No backup passphrase is set. Add one in Service Day's Backup settings first."
             }
         }
     }
@@ -189,7 +189,7 @@ private extension String {
 struct LogVisitBySpeechIntent: AppIntent {
     static let title: LocalizedStringResource = "Log a Visit by Speech"
     static let description = IntentDescription(
-        "Dictate a visit note aloud — Trellis parses and files it, then speaks a confirmation.")
+        "Dictate a visit note aloud — Service Day parses and files it, then speaks a confirmation.")
 
     @Parameter(title: "Visit Note", requestValueDialog: "What would you like to log?")
     var spokenNote: String
@@ -342,7 +342,7 @@ struct HarvestShortcuts: AppShortcutsProvider {
                 "Backup \(.applicationName)",
                 "Create a backup in \(.applicationName)"
             ],
-            shortTitle: "Back up Trellis",
+            shortTitle: "Back up Service Day",
             systemImageName: "lock.doc.fill"
         )
         AppShortcut(
