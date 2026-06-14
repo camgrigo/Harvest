@@ -18,14 +18,13 @@ struct PersonDetailView: View {
     @State private var showingDeleteConfirm = false
     @State private var showMapPicker = false
     @State private var suppressRegeocode = false
-    @State private var lookAroundScene: MKLookAroundScene?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Form {
-            if let lookAroundScene {
+            if let coordinate = person.coordinate {
                 Section {
-                    LookAroundPreview(initialScene: lookAroundScene)
+                    RowLookAround(coordinate: coordinate, feather: false)
                         .frame(height: 180)
                         .overlay(alignment: .bottomLeading) {
                             if !person.addressText.isEmpty {
@@ -112,7 +111,6 @@ struct PersonDetailView: View {
             if suppressRegeocode { suppressRegeocode = false; return }
             regeocode()
         }
-        .task(id: coordKey) { await loadLookAround() }
         .safeAreaInset(edge: .bottom) { composerBar }
         .tint(person.theme.color)
     }
@@ -189,6 +187,17 @@ struct PersonDetailView: View {
                         Label(level.label, systemImage: level.symbol).tag(level)
                     }
                 }
+                if person.startDate == nil {
+                    Button { person.startDate = .now } label: {
+                        Label("Add start date", systemImage: "calendar.badge.plus")
+                    }
+                } else {
+                    DatePicker("Started",
+                               selection: Binding(get: { person.startDate ?? .now },
+                                                  set: { person.startDate = $0 }),
+                               displayedComponents: .date)
+                    Button("Clear start date", role: .destructive) { person.startDate = nil }
+                }
                 Button("Delete", role: .destructive) {
                     showingDeleteConfirm = true
                 }
@@ -196,19 +205,22 @@ struct PersonDetailView: View {
                 // ── Read-only display ─────────────────────────────────────────
                 // The address rides on the Look Around preview when there's a scene; show the
                 // plain row only when there's no preview to host it.
-                if !person.addressText.isEmpty, lookAroundScene == nil {
+                if !person.addressText.isEmpty, person.coordinate == nil {
                     LabeledContent("Address", value: person.addressText)
                 }
                 LabeledContent("Status") {
                     Label(person.interest.label, systemImage: person.interest.symbol)
                         .foregroundStyle(.secondary)
                 }
+                if let start = person.startDate {
+                    LabeledContent("Started", value: start.formatted(date: .abbreviated, time: .omitted))
+                }
             }
 
             // ── Actions ───────────────────────────────────────────────────────
             // Directions normally ride on the Look Around card; fall back to a row only when
             // there's no scene to host the button.
-            if !person.addressText.isEmpty, lookAroundScene == nil {
+            if !person.addressText.isEmpty, person.coordinate == nil {
                 MapsLinkRow(title: "Directions",
                             address: person.addressText,
                             coordinate: person.coordinate)
@@ -398,22 +410,6 @@ struct PersonDetailView: View {
     }
 
     // MARK: Actions
-
-    /// Changes whenever the pin moves, so the Look Around scene re-fetches on address edits.
-    private var coordKey: String {
-        guard let c = person.coordinate else { return "" }
-        return String(format: "%.5f,%.5f", c.latitude, c.longitude)
-    }
-
-    private func loadLookAround() async {
-        guard let c = person.coordinate else { lookAroundScene = nil; return }
-        lookAroundScene = await Self.loadScene(at: c)
-    }
-
-    /// Fetched off the main actor (the request/scene are non-Sendable); `sending` returns it safely.
-    private nonisolated static func loadScene(at coordinate: CLLocationCoordinate2D) async -> sending MKLookAroundScene? {
-        try? await MKLookAroundSceneRequest(coordinate: coordinate).scene
-    }
 
     private func makeSummary() async {
         isSummarizing = true

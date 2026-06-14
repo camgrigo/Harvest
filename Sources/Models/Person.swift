@@ -26,6 +26,9 @@ final class Person {
     var studyPublication: String = ""
     /// Current Bible-study lesson number as text (e.g. "5"), or empty. Defaulted for migration.
     var studyLesson: String = ""
+    /// When the return visit / study began — set by you on their page. nil = not recorded.
+    /// Defaulted for lightweight migration of existing rows.
+    var startDate: Date? = nil
 
     @Relationship(deleteRule: .cascade, inverse: \JournalEntry.person)
     var entries: [JournalEntry]

@@ -23,7 +23,7 @@ struct RootView: View {
             Tab("People", systemImage: "person.2.fill", value: RootTab.people) {
                 PeopleMapContainer()
             }
-            Tab("Calendar", systemImage: "calendar", value: RootTab.calendar) {
+            Tab("Today", systemImage: "calendar.day.timeline.left", value: RootTab.calendar) {
                 ServicePlansView()
             }
         }

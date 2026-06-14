@@ -28,7 +28,7 @@ UITESTS := testAppLaunchesWithoutCrashing testAccessibilityAudit testReturnKeySu
 	testPersonRowOpensDetail testSummarizeProducesReply testMapTabShowsControls \
 	testMapSheetHasSearch testMapSearchFindsPerson \
 	testMapStyleChooserShowsLooks testMapStyleChooserSelectsSatellite testMapBreadcrumbToggles \
-	testMapShowEverythingStaysOnMap testPeopleTabListsFiledPerson
+	testMapShowEverythingStaysOnMap testTodayCalendarSwitcher testPeopleTabListsFiledPerson
 
 .PHONY: generate build build-device install launch test-unit test-ui sim test-unit-sim test-ui-sim clean help
 

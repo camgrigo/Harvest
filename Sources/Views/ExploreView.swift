@@ -174,7 +174,7 @@ struct ExploreView: View {
                 Label("List", systemImage: "list.bullet").tag(PeopleViewMode.list)
             }
         } label: {
-            Image(systemName: "line.3.horizontal")
+            Image(systemName: "line.3.horizontal.decrease")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(.primary)
                 .frame(width: 44, height: 44)

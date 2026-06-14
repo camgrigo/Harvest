@@ -310,6 +310,18 @@ final class RVUITests: XCTestCase {
                       "Still on the map after re-framing")
     }
 
+    /// The Today tab defaults to the timeline and its menu switches to the month Calendar.
+    func testTodayCalendarSwitcher() throws {
+        let app = launch()
+        app.buttons["Today"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Today"].waitForExistence(timeout: 5),
+                      "Today tab defaults to the timeline")
+        app.buttons["Switch view"].firstMatch.tap()
+        app.buttons["Calendar"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Calendar"].waitForExistence(timeout: 5),
+                      "Switcher flips to the month Calendar")
+    }
+
     /// A filed visit shows up on the People tab, and the tab bar persists across tabs.
     func testPeopleTabListsFiledPerson() throws {
         let app = launch()
@@ -320,7 +332,7 @@ final class RVUITests: XCTestCase {
         openPeople(app)
         XCTAssertTrue(app.staticTexts["Maria"].waitForExistence(timeout: 10),
                       "The People tab lists Maria")
-        XCTAssertTrue(app.buttons["People"].exists && app.buttons["Calendar"].exists,
+        XCTAssertTrue(app.buttons["People"].exists && app.buttons["Today"].exists,
                       "The tab bar stays put across tabs")
     }
 }

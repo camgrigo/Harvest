@@ -1,6 +1,11 @@
 import SwiftUI
 import SwiftData
 
+/// Today timeline (the default) vs the full month calendar, toggled by the view-switcher menu.
+enum CalendarViewMode: String, CaseIterable {
+    case today, calendar
+}
+
 /// A personal list of service plans — upcoming and past — kept just for you. Add one with when,
 /// where you'll meet, who you're going with, and a note; optionally mirror it to Apple Calendar.
 struct ServicePlansView: View {
@@ -8,10 +13,13 @@ struct ServicePlansView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \ServicePlan.date) private var plans: [ServicePlan]
     @Query private var doors: [NotAtHome]
+    @Query(filter: #Predicate<Person> { !$0.isArchived }) private var people: [Person]
 
+    @AppStorage("calendarViewMode") private var mode: CalendarViewMode = .today
     @State private var editing: ServicePlan?
     @State private var addingNew = false
     @State private var selectedDate: Date = .now
+    @State private var selectedPerson: Person?
 
     private var upcoming: [ServicePlan] { plans.filter(\.isUpcoming) }
     private var past: [ServicePlan] { plans.filter { !$0.isUpcoming }.reversed() }
@@ -24,58 +32,25 @@ struct ServicePlansView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                    .datePickerStyle(.graphical)
-                    .padding(.horizontal)
-                    .padding(.bottom, 4)
-                notAtHomeTip
-                Group {
-                    if plans.isEmpty {
-                        ContentUnavailableView(
-                            "No service plans",
-                            systemImage: "calendar",
-                            description: Text("Plan a time in the ministry — when, where you'll meet, and who you're going with.")
-                        )
-                    } else {
-                        List {
-                            if !upcoming.isEmpty {
-                                Section("Upcoming") {
-                                    ForEach(upcoming) { planRow($0) }
-                                        .onDelete { delete(upcoming, $0) }
-                                }
-                            }
-                            if !upcomingOccurrences.isEmpty {
-                                Section("Repeats") {
-                                    ForEach(upcomingOccurrences) { occurrence in
-                                        Button { editing = occurrence.plan } label: {
-                                            HStack(spacing: 10) {
-                                                Image(systemName: "repeat")
-                                                    .foregroundStyle(.secondary)
-                                                VStack(alignment: .leading, spacing: 2) {
-                                                    Text(occurrence.date.formatted(.dateTime.weekday(.abbreviated).month().day().hour().minute()))
-                                                        .font(.subheadline.weight(.medium))
-                                                    Text(occurrence.plan.recurrenceKind.label)
-                                                        .font(.caption).foregroundStyle(.secondary)
-                                                }
-                                            }
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                            }
-                            if !past.isEmpty {
-                                Section("Past") {
-                                    ForEach(past) { planRow($0) }
-                                        .onDelete { delete(past, $0) }
-                                }
-                            }
-                        }
-                    }
+            Group {
+                switch mode {
+                case .today:    todayTimeline
+                case .calendar: calendarBody
                 }
             }
-            .navigationTitle("Calendar")
+            .navigationTitle(mode == .today ? "Today" : "Calendar")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Picker("View", selection: $mode) {
+                            Label("Today", systemImage: "calendar.day.timeline.left").tag(CalendarViewMode.today)
+                            Label("Calendar", systemImage: "calendar").tag(CalendarViewMode.calendar)
+                        }
+                    } label: { Image(systemName: "line.3.horizontal.decrease") }
+                    .accessibilityLabel("Switch view")
+                }
+            }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 0) {
                     ServiceSessionControlView()
@@ -84,6 +59,184 @@ struct ServicePlansView: View {
             }
             .sheet(item: $editing) { plan in PlanEditor(plan: plan) }
             .sheet(isPresented: $addingNew) { NewServicePlanView(initialDate: selectedDate) }
+            .sheet(item: $selectedPerson) { person in
+                NavigationStack { PersonDetailView(person: person) }
+            }
+        }
+    }
+
+    // MARK: Today timeline
+
+    /// One thing happening today: a return visit that's due/overdue, a one-off plan, or a recurring
+    /// plan landing today. Sorted purely by time, so overdue visits (past times) float to the top.
+    private enum TodayItem: Identifiable {
+        case visit(Person)
+        case plan(ServicePlan)
+        case occurrence(RecurringOccurrence)
+
+        var id: String {
+            switch self {
+            case .visit(let p):      "v-\(p.id)"
+            case .plan(let p):       "p-\(p.id)"
+            case .occurrence(let o): "o-\(o.id)"
+            }
+        }
+        var time: Date {
+            switch self {
+            case .visit(let p):      p.nextVisitDate ?? .distantPast
+            case .plan(let p):       p.date
+            case .occurrence(let o): o.date
+            }
+        }
+    }
+
+    /// Due/overdue visits + today's plans + recurring occurrences landing today, time-ordered.
+    private var todayItems: [TodayItem] {
+        let cal = Calendar.current
+        let endOfToday = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: .now)) ?? .now
+
+        let visits = people
+            .filter { p in if let d = p.nextVisitDate { return d < endOfToday } else { return false } }
+            .map(TodayItem.visit)
+        let todayPlans = plans
+            .filter { cal.isDateInToday($0.date) }
+            .map(TodayItem.plan)
+        let todayOccurrences = upcomingOccurrences
+            .filter { cal.isDateInToday($0.date) }
+            .map(TodayItem.occurrence)
+
+        return (visits + todayPlans + todayOccurrences).sorted { $0.time < $1.time }
+    }
+
+    @ViewBuilder
+    private var todayTimeline: some View {
+        let items = todayItems
+        if items.isEmpty {
+            ContentUnavailableView {
+                Label("Nothing today", systemImage: "checkmark.circle")
+            } description: {
+                Text("No return visits due and no service plans today. Tap below to plan one, or switch to Calendar.")
+            }
+        } else {
+            List {
+                Section {
+                    ForEach(items) { item in timelineRow(item) }
+                } header: {
+                    Text(Date.now.formatted(.dateTime.weekday(.wide).month().day()))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func timelineRow(_ item: TodayItem) -> some View {
+        switch item {
+        case .visit(let person):   visitRow(person)
+        case .plan(let plan):      Button { editing = plan } label: { planTimelineRow(plan) }.buttonStyle(.plain)
+        case .occurrence(let occ): Button { editing = occ.plan } label: { occurrenceRow(occ) }.buttonStyle(.plain)
+        }
+    }
+
+    private func visitRow(_ person: Person) -> some View {
+        let overdue = (person.nextVisitDate ?? .now) < Calendar.current.startOfDay(for: .now)
+        return Button { selectedPerson = person } label: {
+            HStack(spacing: 12) {
+                Image(systemName: overdue ? "alarm.fill" : "figure.walk")
+                    .foregroundStyle(overdue ? .red : .blue)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(person.name).font(.headline)
+                    Text(overdue ? "Return visit · \(personDueText(person) ?? "due")"
+                                 : "Return visit · \(person.nextVisitDate?.formatted(.dateTime.hour().minute()) ?? "today")")
+                        .font(.caption).foregroundStyle(overdue ? .red : .secondary)
+                    if !person.headline.isEmpty {
+                        Text(person.headline).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func planTimelineRow(_ plan: ServicePlan) -> some View {
+        HStack(spacing: 12) {
+            Text(plan.date.formatted(.dateTime.hour().minute()))
+                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                .frame(width: 64, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(plan.place.isEmpty ? "Field service" : plan.place).font(.headline)
+                if !plan.partner.isEmpty {
+                    Label(plan.partner, systemImage: "person.2").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func occurrenceRow(_ occ: RecurringOccurrence) -> some View {
+        HStack(spacing: 12) {
+            Text(occ.date.formatted(.dateTime.hour().minute()))
+                .font(.subheadline.weight(.semibold)).monospacedDigit()
+                .frame(width: 64, alignment: .leading)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(occ.plan.place.isEmpty ? "Field service" : occ.plan.place).font(.headline)
+                Label(occ.plan.recurrenceKind.label, systemImage: "repeat")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: Calendar (month) view
+
+    private var calendarBody: some View {
+        VStack(spacing: 0) {
+            DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .padding(.horizontal)
+                .padding(.bottom, 4)
+            notAtHomeTip
+            Group {
+                if plans.isEmpty {
+                    ContentUnavailableView(
+                        "No service plans",
+                        systemImage: "calendar",
+                        description: Text("Plan a time in the ministry — when, where you'll meet, and who you're going with.")
+                    )
+                } else {
+                    List {
+                        if !upcoming.isEmpty {
+                            Section("Upcoming") {
+                                ForEach(upcoming) { planRow($0) }
+                                    .onDelete { delete(upcoming, $0) }
+                            }
+                        }
+                        if !upcomingOccurrences.isEmpty {
+                            Section("Repeats") {
+                                ForEach(upcomingOccurrences) { occurrence in
+                                    Button { editing = occurrence.plan } label: {
+                                        HStack(spacing: 10) {
+                                            Image(systemName: "repeat")
+                                                .foregroundStyle(.secondary)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(occurrence.date.formatted(.dateTime.weekday(.abbreviated).month().day().hour().minute()))
+                                                    .font(.subheadline.weight(.medium))
+                                                Text(occurrence.plan.recurrenceKind.label)
+                                                    .font(.caption).foregroundStyle(.secondary)
+                                            }
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        if !past.isEmpty {
+                            Section("Past") {
+                                ForEach(past) { planRow($0) }
+                                    .onDelete { delete(past, $0) }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

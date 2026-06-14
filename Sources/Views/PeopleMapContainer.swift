@@ -32,7 +32,7 @@ struct ViewModeMenu: View {
                 Label("List", systemImage: "list.bullet").tag(PeopleViewMode.list)
             }
         } label: {
-            Image(systemName: "line.3.horizontal")
+            Image(systemName: "line.3.horizontal.decrease")
         }
         .accessibilityLabel("Switch view")
     }
